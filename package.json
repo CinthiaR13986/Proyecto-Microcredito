@@ -1,0 +1,31 @@
+{
+  "name": "microcredito-p1",
+  "version": "1.0.0",
+  "description": "Proyecto 1 — Arquitectura y diseño de componentes — Sistema de Gestión de Microcrédito — Crédito Vecino, S.A.",
+  "main": "src/dominio/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "microcredito",
+    "arquitectura",
+    "typecript",
+    "domain"
+  ],
+  "author": "Tu Nombre Completo",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "date-fns": "^4.4.0",
+    "decimal.js": "^10.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

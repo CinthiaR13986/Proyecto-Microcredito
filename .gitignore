@@ -141,3 +141,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+# Build output
+dist/
+
+# Sistema y ambiente
+.DS_Store
+.env
