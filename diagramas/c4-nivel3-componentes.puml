@@ -1,0 +1,21 @@
+@startuml C4-Nivel3
+!include <C4/C4_Component>
+title Componentes del Núcleo y Adaptadores Primarios
+
+Component(originacion, "Módulo Originación", "TS", "Solicitudes, Desembolsos")
+Component(calculo, "Módulo Cálculo", "TS", "Amortización, Mora (Estrategias)")
+Component(cartera, "Módulo Cartera", "TS", "Prelación, Saldos, Estados")
+Component(cierres, "Módulo Cierres", "TS", "Corte diario/mensual, Riesgo")
+
+Component(api_router, "API Router", "Express", "Expone casos de uso vía HTTP")
+Component(mcp_server, "MCP Server", "@modelcontextprotocol/sdk", "Expone casos de uso como Tools para LLMs")
+
+Rel(api_router, originacion, "Usa")
+Rel(api_router, cartera, "Usa")
+Rel(mcp_server, cartera, "Usa (Ej: tool: calcular_mora)")
+Rel(mcp_server, cierres, "Usa (Ej: tool: ver_riesgo)")
+
+Rel(originacion, calculo, "Genera Plan")
+Rel(cartera, calculo, "Calcula Mora")
+Rel(cierres, cartera, "Consolida Saldos")
+@enduml

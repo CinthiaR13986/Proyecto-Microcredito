@@ -1,0 +1,19 @@
+@startuml C4-Nivel1
+!include <C4/C4_Context>
+title Contexto del Sistema - Crédito Vecino
+
+Person(cliente, "Cliente", "Solicita créditos y realiza pagos")
+Person(asesor, "Asesor de Crédito", "Evalúa solicitudes y gestiona cobros")
+Person(gerente, "Gerencia", "Consulta cartera en riesgo y cierres")
+
+System(sistema, "Sistema de Microcrédito", "Gestiona originación, cartera, cobros y cierres financieros.")
+
+System_Ext(sib, "SIB", "Superintendencia de Bancos (Regulación)")
+System_Ext(casa_cobro, "Casa de Cobro Externa", "Gestiona créditos incobrables")
+
+Rel(cliente, sistema, "Solicita / Paga")
+Rel(asesor, sistema, "Opera y aprueba")
+Rel(gerente, sistema, "Consulta indicadores")
+Rel(sistema, sib, "Reporta cartera y reservas")
+Rel(sistema, casa_cobro, "Envía / Recibe recuperaciones")
+@enduml

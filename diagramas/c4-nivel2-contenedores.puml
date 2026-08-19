@@ -1,0 +1,23 @@
+@startuml C4-Nivel2
+!include <C4/C4_Container>
+title Contenedores - Arquitectura Hexagonal
+
+Person(asesor, "Asesor")
+
+System_Boundary(sys, "Sistema de Microcrédito") {
+    Container(api, "API REST (Express/Fastify)", "TypeScript", "Adaptador Primario HTTP")
+    Container(mcp, "Servidor MCP", "TypeScript", "Adaptador Primario para IA (Proyecto Final)")
+    Container(chat_ui, "Chat / UI", "React", "Adaptador Primario (Proyecto 2/Final)")
+    
+    Container(core, "Núcleo de Dominio", "TypeScript (Pure)", "Casos de uso, Entidades, Value Objects (E4)")
+    
+    ContainerDb(db, "Base de Datos", "PostgreSQL + pgvector", "Persistencia y vectores para RAG")
+}
+
+Rel(asesor, api, "Usa")
+Rel(asesor, chat_ui, "Interactúa")
+Rel(chat_ui, mcp, "Consulta herramientas")
+Rel(api, core, "Invoca Puertos Primarios")
+Rel(mcp, core, "Invoca Puertos Primarios")
+Rel(core, db, "Lee/Escribe (vía Puertos Secundarios)")
+@enduml
