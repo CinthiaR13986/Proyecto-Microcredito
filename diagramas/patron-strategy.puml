@@ -1,0 +1,25 @@
+@startuml patron-strategy
+title Strategy (GoF) — método de interés intercambiable (OCP)
+
+interface MetodoAmortizacion {
+  + cuotaBase(capital : Dinero, tasa : Decimal, n : int) : Dinero
+}
+class MetodoFrances {
+  + cuotaBase(...) : Dinero
+}
+class PlanAmortizacion {
+  + {static} generar(params) : PlanAmortizacion
+}
+class PoliticaAdelanto <<Strategy de excedente>> {
+  destino : A_CAPITAL | A_CUOTAS_FUTURAS
+}
+
+MetodoFrances ..|> MetodoAmortizacion
+PlanAmortizacion o--> MetodoAmortizacion : se recibe por parámetro
+PlanAmortizacion ..> PoliticaAdelanto
+
+note bottom of MetodoFrances
+  Hoy: francés. Mañana: "sobre saldos"
+  o "cuota fija" sin tocar el motor.
+end note
+@enduml

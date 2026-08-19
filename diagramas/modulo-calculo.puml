@@ -1,0 +1,61 @@
+@startuml modulo-calculo
+title Módulo Cálculo Financiero — diseño a nivel de clases
+
+class Dinero <<Value Object>> {
+  - monto : Decimal
+  - moneda : Moneda
+  --
+  + sumar(otro : Dinero) : Dinero
+  + restar(otro : Dinero) : Dinero
+  + multiplicarPor(factor : number) : Dinero
+  + redondeado() : Dinero
+}
+
+enum Moneda {
+  GTQ
+  USD
+}
+
+interface MetodoAmortizacion <<Strategy>> {
+  + cuotaBase(capital, tasa, n) : Dinero
+}
+class MetodoFrances {
+  + cuotaBase(capital, tasa, n) : Dinero
+}
+
+class PlanAmortizacion <<Factory>> {
+  - filas : Cuota[]
+  --
+  + {static} generar(params) : PlanAmortizacion
+  - verificarInvariantes(capital) : void
+  + totalInteres() : Dinero
+  + totalAmortizacion() : Dinero
+  + saldoFinal() : Dinero
+}
+
+class Cuota {
+  numero : int
+  saldoInicial : Dinero
+  cuota : Dinero
+  interes : Dinero
+  amortizacion : Dinero
+  saldoFinal : Dinero
+}
+
+class CalculadoraMora {
+  + calcularInteresMoratorio(capital, dias, politica) : Dinero
+  + clasificarTramo(dias) : TramoMora
+}
+
+class PoliticaMoratoria <<Policy>> {
+  tnaMoratoria : decimal
+  base : BaseConteo
+}
+
+MetodoFrances ..|> MetodoAmortizacion
+PlanAmortizacion o--> MetodoAmortizacion
+PlanAmortizacion "1" *-- "1..*" Cuota
+Cuota ..> Dinero
+CalculadoraMora ..> Dinero
+CalculadoraMora ..> PoliticaMoratoria
+@enduml

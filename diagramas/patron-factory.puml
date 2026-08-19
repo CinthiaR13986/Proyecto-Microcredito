@@ -1,0 +1,18 @@
+@startuml patron-factory
+title Factory (GoF) — plan con invariantes garantizados
+
+class PlanAmortizacion {
+  - filas : Cuota[]
+  --
+  + {static} generar(params) : PlanAmortizacion
+  - verificarInvariantes(capital) : void
+}
+class Cuota
+PlanAmortizacion "1" *-- "1..*" Cuota
+
+note right of PlanAmortizacion
+  Constructor privado: solo se crea vía
+  generar(), que verifica Σ amortizaciones = P
+  y saldo final = 0.00 antes de entregar el plan.
+end note
+@enduml

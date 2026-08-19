@@ -1,0 +1,22 @@
+@startuml patron-state
+title State (GoF) — ciclo de vida del crédito (6.7)
+
+class Credito {
+  - estado : EstadoCredito
+  - diasAtraso : int
+  --
+  + aplicar(evento, fecha, usuario) : Credito
+  + tramo() : TramoMora  «derivado»
+  + puedeRecibirPago() : boolean
+}
+class siguienteEstado <<tabla 6.7.1>> {
+  (estado, evento) -> estado'
+}
+Credito ..> siguienteEstado : delega la transición
+
+note right of siguienteEstado
+  Transición inválida = error:
+  imposible por diseño,
+  no evitada con un if.
+end note
+@enduml

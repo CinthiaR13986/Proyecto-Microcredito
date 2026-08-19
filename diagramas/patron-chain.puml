@@ -1,0 +1,19 @@
+@startuml patron-chain
+title Chain of Responsibility (GoF) — prelación de pagos (6.6)
+
+class EslabonPrelacion {
+  + rubro : Rubro
+  - siguiente : EslabonPrelacion | null
+  --
+  + procesar(remanente, deuda, aplicados)
+}
+EslabonPrelacion o--> EslabonPrelacion : siguiente
+
+note right of EslabonPrelacion
+  Cadena normativa:
+  gastos -> moratorio -> corriente -> capital.
+  Cada eslabón consume min(remanente, pendiente)
+  y delega el resto. Cambiar el orden =
+  reconstruir la cadena, sin tocar la lógica.
+end note
+@enduml
