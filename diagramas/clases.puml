@@ -1,0 +1,165 @@
+@startuml clases-dominio
+skinparam classAttributeIconSize 0
+hide circle
+skinparam packageStyle rectangle
+
+package "Núcleo de dominio (E4)" {
+
+  class Dinero <<Value Object>> {
+    - monto : Decimal
+    - moneda : Moneda
+    --
+    + sumar(otro : Dinero) : Dinero
+    + restar(otro : Dinero) : Dinero
+    + multiplicarPor(factor : number) : Dinero
+    + redondeado() : Dinero
+    + esCero() : boolean
+    + esNegativo() : boolean
+    + aNumero() : number
+  }
+
+  enum Moneda {
+    GTQ
+    USD
+  }
+
+  interface MetodoAmortizacion <<Strategy>> {
+    + cuotaBase(capital : Dinero, tasa : Decimal, n : int) : Dinero
+  }
+
+  class MetodoFrances {
+    + cuotaBase(capital : Dinero, tasa : Decimal, n : int) : Dinero
+  }
+
+  class PoliticaMoratoria <<Policy versionada>> {
+    - tnaMoratoria : decimal
+    - base : BaseConteo
+  }
+
+  class Cliente {
+    - id : string
+    - nombre : string
+    - dpi : string
+  }
+
+  class SolicitudCredito {
+    - id : string
+    - monto : Dinero
+    - plazoCuotas : int
+    - tna : decimal
+    - estado : solicitado | aprobado | rechazado
+    --
+    + aprobar() : void
+    + rechazar(motivo : string) : void
+  }
+
+  class Credito <<Agregado>> {
+    - id : string
+    - estado : EstadoCredito
+    - diasAtraso : int
+    - marcadoReestructurado : boolean
+    --
+    + aplicar(evento, fecha, usuario) : Credito
+    + tramo() : TramoMora  «derivado»
+    + puedeRecibirPago() : boolean
+    + historialEstados() : RegistroEstado[]
+  }
+
+  class PlanAmortizacion {
+    - filas : Cuota[]
+    --
+    + {static} generar(params) : PlanAmortizacion  «Factory»
+    + totalInteres() : Dinero
+    + totalAmortizacion() : Dinero
+    + totalPagado() : Dinero
+    + saldoFinal() : Dinero
+  }
+
+  class Cuota {
+    - numero : int
+    - fechaVencimiento : date
+    - saldoInicial : Dinero
+    - cuota : Dinero
+    - interes : Dinero
+    - amortizacion : Dinero
+    - saldoFinal : Dinero
+  }
+
+  class Pago {
+    - id : string
+    - claveIdempotencia : string
+    - monto : Dinero
+    - fecha : date
+    - aplicados : Rubros
+    - excedente : Dinero
+  }
+
+  class Movimiento <<append-only>> {
+    - id : string
+    - concepto : string
+    - monto : Dinero
+    - fecha : date
+  }
+
+  class Cierre {
+    - id : string
+    - fechaCorte : date
+    - tipo : diario | mensual
+    - porcentajeRiesgo : decimal
+    - montoEnRiesgo : Dinero
+    - totalIncobrables : Dinero
+  }
+}
+
+package "Puertos y casos de uso (hexagonal)" {
+
+  interface Reloj <<puerto secundario>> {
+    + hoy() : date
+  }
+
+  interface RepositorioCreditos <<puerto secundario>> {
+    + obtener(id : string) : Credito
+    + guardar(credito : Credito, movimientos : Movimiento[]) : void
+  }
+
+  class RegistrarPago <<caso de uso>> {
+    + ejecutar(comando) : ResultadoPago
+  }
+
+  class DesembolsarCredito <<caso de uso>> {
+    + ejecutar(comando) : ResultadoDesembolso
+  }
+
+  class EslabonPrelacion <<Chain of Responsibility>> {
+    + procesar(remanente, deuda, aplicados) : resultado
+  }
+
+  class CalculadoraMora {
+    + calcularInteresMoratorio(capital, dias, politica) : Dinero
+    + clasificarTramo(dias) : TramoMora
+  }
+}
+
+Cliente "1" --> "0..*" SolicitudCredito : solicita
+SolicitudCredito "1" --> "0..1" Credito : origina
+Credito "1" *-- "1" PlanAmortizacion : tiene
+PlanAmortizacion "1" *-- "1..*" Cuota : compone
+Credito "1" o-- "0..*" Pago : recibe
+Pago "1" --> "1..*" Movimiento : genera
+Credito "1" --> "0..*" Movimiento : mayor
+Credito ..> Dinero : usa
+Cuota ..> Dinero : usa
+Pago ..> Dinero : usa
+Credito ..> PoliticaMoratoria : se calcula con
+MetodoFrances ..|> MetodoAmortizacion
+PlanAmortizacion ..> MetodoAmortizacion : strategy
+CalculadoraMora ..> PoliticaMoratoria : parámetro
+RegistrarPago ..> EslabonPrelacion : aplica prelación
+RegistrarPago ..> CalculadoraMora : calcula moratorio
+RegistrarPago ..> RepositorioCreditos : persiste
+RegistrarPago ..> Reloj : fecha de corte
+DesembolsarCredito ..> PlanAmortizacion : genera plan
+DesembolsarCredito ..> RepositorioCreditos : persiste
+Cierre ..> Credito : consolida cartera
+Cierre ..> CalculadoraMora : marca mora y tramos
+@enduml

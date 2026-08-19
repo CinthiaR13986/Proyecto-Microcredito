@@ -1,0 +1,39 @@
+@startuml secuencia-pago
+title Caso de uso: Registrar pago de cuota (prelación, sección 6.6)
+
+actor "Asesor /\nCasa de cobro" as Asesor
+participant "registrarPago :\nRegistrarPago" as UC
+participant "reloj : Reloj" as Reloj
+participant "repo :\nRepositorioCreditos" as Repo
+participant "credito : Credito" as C
+participant "mora : CalculadoraMora" as Mora
+participant "cadena :\nEslabonPrelacion" as Cadena
+participant "movimientos :\nMovimiento" as Mov
+
+Asesor -> UC : ejecutar(creditoId, monto, claveIdempotencia)
+UC -> Reloj : hoy()
+Reloj --> UC : fechaCorte
+UC -> Repo : obtener(creditoId)
+Repo --> UC : credito
+
+UC -> C : puedeRecibirPago()
+alt estado NO admite pago (solicitado / rechazado / cancelado...)
+  UC --> Asesor : error CREDITO_NO_PAGABLE (409)
+else vigente | en_mora | reestructurado
+  UC -> C : diasDeAtraso
+  C --> UC : 15
+  UC -> Mora : calcularInteresMoratorio(Q725.76, 15, politica)
+  Mora --> UC : Q7.26 (solo capital en mora: sin anatocismo)
+  UC -> UC : arma rubros: gastos 0.00, moratorio 7.26,\ncorriente 278.86, capital 725.76
+  UC -> Cadena : aplicarPago(Q1,011.88, rubros)
+  activate Cadena
+  Cadena -> Cadena : 1 gastos -> 2 moratorio ->\n3 corriente -> 4 capital
+  Cadena --> UC : aplicados + excedente + cuotaSaldada
+  deactivate Cadena
+  UC -> C : aplicar(PAGO, nuevosDias, fechaCorte, usuario)
+  C --> UC : credito' (regulariza si dias = 0)
+  UC -> Mov : append movimientos por rubro (mayor append-only)
+  UC -> Repo : guardar(credito', movimientos)
+  UC --> Asesor : 200 { aplicados por rubro, excedente, nuevo estado }
+end
+@enduml

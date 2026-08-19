@@ -1,0 +1,30 @@
+@startuml secuencia-desembolso
+title Caso de uso: Desembolsar crédito
+
+actor "Comité / Asesor" as Comite
+participant "desembolsar :\nDesembolsarCredito" as UC
+participant "repo :\nRepositorioCreditos" as Repo
+participant "credito : Credito" as C
+participant "plan : PlanAmortizacion" as Plan
+participant "movimientos :\nMovimiento" as Mov
+
+Comite -> UC : ejecutar(creditoId, politicaVigente)
+UC -> Repo : obtener(creditoId)
+Repo --> UC : credito
+UC -> C : estadoActual
+C --> UC : aprobado
+alt estado distinto de aprobado
+  UC --> Comite : error TRANSICION_INVALIDA (409)
+else aprobado
+  UC -> Plan : generar(capital, tasaMensual, n, MetodoFrances)
+  activate Plan
+  Plan -> Plan : cuota fija + ajuste de última cuota\nverifica: suma amortizaciones = P y saldo 0.00
+  Plan --> UC : plan (12 cuotas)
+  deactivate Plan
+  UC -> C : aplicar(DESEMBOLSAR, fecha, usuario)
+  C --> UC : credito' en estado vigente
+  UC -> Mov : append movimiento de desembolso
+  UC -> Repo : guardar(credito', plan, movimientos)
+  UC --> Comite : 200 { plan de amortización }
+end
+@enduml

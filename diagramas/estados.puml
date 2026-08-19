@@ -1,0 +1,43 @@
+@startuml estados-credito
+title Ciclo de vida del crédito (tabla 6.7.1 completa, con regularización)
+
+[*] --> solicitado
+
+solicitado --> aprobado : Comité aprueba\n[cumple política de crédito]
+solicitado --> rechazado : Comité rechaza
+
+aprobado --> vigente : Se desembolsa\n[capital entregado al cliente]
+aprobado --> anulado : Cliente desiste / expira\n[antes del desembolso]
+
+vigente --> en_mora : Vence cuota impagada\n[díasAtraso >= 1]
+vigente --> cancelado : Paga última cuota\n[saldo = 0.00 exacto]
+
+en_mora --> vigente : Paga TODO lo vencido\n[díasAtraso = 0] REGULARIZA
+en_mora --> en_mora : Paga PARTE o sube de tramo\n[tramo derivado sube o baja]
+en_mora --> reestructurado : Acuerdo nuevas condiciones\n[comité autoriza]
+en_mora --> incobrable : Supera 120 días sin arreglo\n[díasAtraso > 120]
+
+reestructurado --> vigente : Cumple nuevo plan al día\n[sigue marcado en riesgo]
+reestructurado --> en_mora : Se atrasa en nuevo plan\n[díasAtraso >= 1]
+reestructurado --> cancelado : Paga última cuota nueva\n[saldo = 0.00 exacto]
+
+cancelado --> [*]
+rechazado --> [*]
+anulado --> [*]
+incobrable --> [*]
+
+note right of en_mora
+  El TRAMO (Mora 1: 1-30, Mora 2: 31-60,
+  Mora 3: 61-90, Vencido: 91-120) es un
+  atributo DERIVADO de díasAtraso:
+  sube sin pago y baja con pago.
+  NO es un estado (regla 6.7).
+end note
+
+note right of incobrable
+  Baja CONTABLE: sale de la cartera.
+  Un pago posterior se registra como
+  recuperación de incobrable en cuenta
+  separada; NO regresa a cartera.
+end note
+@enduml

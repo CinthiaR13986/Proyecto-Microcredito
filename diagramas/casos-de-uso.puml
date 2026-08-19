@@ -1,0 +1,56 @@
+@startuml casos-de-uso
+left to right direction
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #F5F8FF
+  BorderColor #33415C
+}
+
+actor "Cliente" as Cliente
+actor "Asesor de crédito" as Asesor
+actor "Comité de crédito" as Comite
+actor "Sistema (procesos de cierre)" as Sistema
+
+rectangle "Sistema de Gestión de Microcrédito — Crédito Vecino, S.A." {
+  usecase "Registrar cliente" as UC1
+  usecase "Solicitar crédito" as UC2
+  usecase "Evaluar y aprobar crédito" as UC3
+  usecase "Desembolsar crédito" as UC4
+  usecase "Registrar pago de cuota" as UC5
+  usecase "Calcular mora e interés moratorio" as UC6
+  usecase "Aplicar prelación de pagos" as UC7
+  usecase "Generar cierre (diario/mensual)" as UC8
+  usecase "Consultar cartera en riesgo" as UC9
+  usecase "Reestructurar crédito" as UC10
+  usecase "Declarar incobrable" as UC11
+}
+
+Cliente --> UC1
+Cliente --> UC2
+Cliente --> UC5
+
+Asesor --> UC1
+Asesor --> UC2
+Asesor --> UC4
+Asesor --> UC5
+Asesor --> UC8
+
+Comite --> UC3
+Comite --> UC10
+Comite --> UC11
+
+Sistema --> UC6
+Sistema --> UC8
+Sistema --> UC9
+
+UC5 ..> UC6 : <<include>>
+UC5 ..> UC7 : <<include>>
+UC8 ..> UC9 : <<include>>
+UC8 ..> UC6 : <<include>>
+
+note right of UC7
+  Orden normativo:
+  gastos → moratorio →
+  corriente → capital
+end note
+@enduml
