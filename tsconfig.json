@@ -14,12 +14,13 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["node", "vitest"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

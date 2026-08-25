@@ -5,6 +5,9 @@
   "main": "src/dominio/index.ts",
   "scripts": {
     "build": "tsc",
+    "reporte": "tsx src/demo/reporte.ts",
+    "demo": "tsx src/demo/consola.ts",
+    "interactivo": "tsx src/demo/interactivo.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit"
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }

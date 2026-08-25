@@ -1,0 +1,404 @@
+openapi: 3.0.3
+info:
+  title: Sistema de Gestión de Microcrédito - Crédito Vecino, S.A.
+  version: 1.0.0
+  description: >
+    Contrato de API (E5). Expone los casos de uso del núcleo (E4) sin reglas
+    de negocio en el adaptador. Convenciones: montos como texto con 2 decimales
+    (ADR-002); errores uniformes {error:{codigo,mensaje}}; pagos idempotentes
+    con X-Idempotency-Key (invariante 6.10). Esquemas derivados de Zod (8.2).
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Desarrollo (se implementa en el Proyecto Final)
+
+tags:
+  - name: Clientes
+  - name: Solicitudes
+  - name: Creditos
+  - name: Pagos
+  - name: Cierres
+  - name: Cartera
+
+paths:
+  /clientes:
+    post:
+      tags: [Clientes]
+      summary: Registrar cliente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClienteRequest' }
+      responses:
+        '201':
+          description: Cliente registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cliente' }
+        '400': { $ref: '#/components/responses/ErrorValidacion' }
+    get:
+      tags: [Clientes]
+      summary: Listar clientes
+      responses:
+        '200':
+          description: Clientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Cliente' }
+
+  /clientes/{clienteId}:
+    get:
+      tags: [Clientes]
+      summary: Consultar cliente por id
+      parameters:
+        - $ref: '#/components/parameters/ClienteId'
+      responses:
+        '200':
+          description: Cliente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cliente' }
+        '404': { $ref: '#/components/responses/ErrorNoEncontrado' }
+
+  /solicitudes:
+    post:
+      tags: [Solicitudes]
+      summary: Solicitar crédito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SolicitudRequest' }
+      responses:
+        '201':
+          description: Solicitud registrada en estado solicitado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Solicitud' }
+        '400': { $ref: '#/components/responses/ErrorValidacion' }
+        '422': { $ref: '#/components/responses/ErrorReglaNegocio' }
+
+  /solicitudes/{solicitudId}/aprobar:
+    post:
+      tags: [Solicitudes]
+      summary: Comité aprueba la solicitud
+      parameters:
+        - $ref: '#/components/parameters/SolicitudId'
+      responses:
+        '200':
+          description: Solicitud aprobada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Solicitud' }
+        '409': { $ref: '#/components/responses/ErrorConflicto' }
+
+  /solicitudes/{solicitudId}/rechazar:
+    post:
+      tags: [Solicitudes]
+      summary: Comité rechaza la solicitud (terminal)
+      parameters:
+        - $ref: '#/components/parameters/SolicitudId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [motivo]
+              properties:
+                motivo: { type: string }
+      responses:
+        '200':
+          description: Solicitud rechazada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Solicitud' }
+        '409': { $ref: '#/components/responses/ErrorConflicto' }
+
+  /creditos/{creditoId}:
+    get:
+      tags: [Creditos]
+      summary: Consultar crédito con plan, saldos, estado y tramo
+      parameters:
+        - $ref: '#/components/parameters/CreditoId'
+      responses:
+        '200':
+          description: Crédito
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Credito' }
+        '404': { $ref: '#/components/responses/ErrorNoEncontrado' }
+
+  /creditos/{creditoId}/desembolsar:
+    post:
+      tags: [Creditos]
+      summary: Desembolsar crédito aprobado (genera plan francés)
+      parameters:
+        - $ref: '#/components/parameters/CreditoId'
+      responses:
+        '200':
+          description: Crédito vigente con plan de amortización
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Credito' }
+        '409': { $ref: '#/components/responses/ErrorConflicto' }
+
+  /pagos:
+    post:
+      tags: [Pagos]
+      summary: Registrar pago con prelación normativa (6.6)
+      description: >
+        Idempotente: reintentar con la misma X-Idempotency-Key devuelve el
+        resultado original sin cobrar dos veces (invariante 6.10).
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PagoRequest' }
+      responses:
+        '200':
+          description: Pago aplicado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagoResponse' }
+        '400': { $ref: '#/components/responses/ErrorValidacion' }
+        '404': { $ref: '#/components/responses/ErrorNoEncontrado' }
+        '409': { $ref: '#/components/responses/ErrorConflicto' }
+
+  /cierres/diario:
+    get:
+      tags: [Cierres]
+      summary: Cierre diario (idempotente, congelado por fecha de corte)
+      parameters:
+        - name: fecha
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Cierre diario
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cierre' }
+
+  /cierres/mensual:
+    get:
+      tags: [Cierres]
+      summary: Cierre mensual consolidado
+      parameters:
+        - name: mes
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4}-\d{2}$', example: '2026-08' }
+      responses:
+        '200':
+          description: Cierre mensual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cierre' }
+
+  /cartera/riesgo:
+    get:
+      tags: [Cartera]
+      summary: Cartera en riesgo (siempre junto con incobrables del período)
+      parameters:
+        - name: fecha
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Indicador de cartera
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CarteraRiesgo' }
+
+components:
+  parameters:
+    ClienteId:
+      name: clienteId
+      in: path
+      required: true
+      schema: { type: string }
+    SolicitudId:
+      name: solicitudId
+      in: path
+      required: true
+      schema: { type: string }
+    CreditoId:
+      name: creditoId
+      in: path
+      required: true
+      schema: { type: string }
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      description: UUID del pago; reintentos con la misma clave no duplican el cobro.
+      schema: { type: string, format: uuid }
+
+  responses:
+    ErrorValidacion:
+      description: Datos inválidos (400)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              codigo: VALIDACION_ERROR
+              mensaje: El monto debe ser un decimal con 2 decimales.
+    ErrorNoEncontrado:
+      description: Recurso inexistente (404)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              codigo: RECURSO_NO_ENCONTRADO
+              mensaje: El crédito CR-9 no existe.
+    ErrorConflicto:
+      description: Estado o idempotencia en conflicto (409)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              codigo: TRANSICION_INVALIDA
+              mensaje: Un crédito en estado solicitado no puede recibir pagos.
+    ErrorReglaNegocio:
+      description: Violación de regla de dominio (422)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              codigo: POLITICA_CREDITO_RECHAZADA
+              mensaje: El plazo excede el máximo de la política vigente.
+
+  schemas:
+    Monto:
+      type: string
+      pattern: '^\d+\.\d{2}$'
+      description: Importe en GTQ como texto con 2 decimales (ADR-002).
+      example: '1004.62'
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [codigo, mensaje]
+          properties:
+            codigo: { type: string }
+            mensaje: { type: string }
+    ClienteRequest:
+      type: object
+      required: [nombre, dpi]
+      properties:
+        nombre: { type: string }
+        dpi: { type: string }
+    Cliente:
+      allOf:
+        - $ref: '#/components/schemas/ClienteRequest'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+    SolicitudRequest:
+      type: object
+      required: [clienteId, monto, plazoCuotas, tnaNominal]
+      properties:
+        clienteId: { type: string }
+        monto: { $ref: '#/components/schemas/Monto' }
+        plazoCuotas: { type: integer, minimum: 3, maximum: 24 }
+        tnaNominal: { type: string, description: TNA nominal anual, ej. 0.36 }
+    Solicitud:
+      allOf:
+        - $ref: '#/components/schemas/SolicitudRequest'
+        - type: object
+          required: [id, estado]
+          properties:
+            id: { type: string }
+            estado:
+              type: string
+              enum: [solicitado, aprobado, rechazado]
+    Cuota:
+      type: object
+      required: [numero, fechaVencimiento, saldoInicial, cuota, interes, amortizacion, saldoFinal]
+      properties:
+        numero: { type: integer }
+        fechaVencimiento: { type: string, format: date }
+        saldoInicial: { $ref: '#/components/schemas/Monto' }
+        cuota: { $ref: '#/components/schemas/Monto' }
+        interes: { $ref: '#/components/schemas/Monto' }
+        amortizacion: { $ref: '#/components/schemas/Monto' }
+        saldoFinal: { $ref: '#/components/schemas/Monto' }
+    Credito:
+      type: object
+      required: [id, estado, diasAtraso, tramo, saldoCapital, plan]
+      properties:
+        id: { type: string }
+        estado:
+          type: string
+          enum: [solicitado, aprobado, vigente, en_mora, reestructurado, cancelado, incobrable, rechazado, anulado]
+        diasAtraso: { type: integer, minimum: 0 }
+        tramo:
+          type: string
+          enum: [AL_DIA, MORA_1, MORA_2, MORA_3, VENCIDO]
+          description: Clasificación derivada de díasAtraso (6.7), no un estado.
+        saldoCapital: { $ref: '#/components/schemas/Monto' }
+        marcadoReestructurado: { type: boolean }
+        plan:
+          type: array
+          items: { $ref: '#/components/schemas/Cuota' }
+    PagoRequest:
+      type: object
+      required: [creditoId, monto]
+      properties:
+        creditoId: { type: string }
+        monto: { $ref: '#/components/schemas/Monto' }
+        canal: { type: string, example: caja }
+    RubrosAplicados:
+      type: object
+      required: [gastos, interesMoratorio, interesCorriente, capital]
+      properties:
+        gastos: { $ref: '#/components/schemas/Monto' }
+        interesMoratorio: { $ref: '#/components/schemas/Monto' }
+        interesCorriente: { $ref: '#/components/schemas/Monto' }
+        capital: { $ref: '#/components/schemas/Monto' }
+    PagoResponse:
+      type: object
+      required: [id, creditoId, aplicados, excedente, cuotaSaldada, estadoResultante]
+      properties:
+        id: { type: string }
+        creditoId: { type: string }
+        aplicados: { $ref: '#/components/schemas/RubrosAplicados' }
+        excedente: { $ref: '#/components/schemas/Monto' }
+        destinoExcedente:
+          type: string
+          enum: [A_CAPITAL, A_CUOTAS_FUTURAS]
+        cuotaSaldada: { type: boolean }
+        estadoResultante: { type: string }
+        tramoResultante: { type: string }
+    CarteraRiesgo:
+      type: object
+      required: [fechaCorte, carteraActiva, montoEnRiesgo, porcentaje, totalIncobrables]
+      properties:
+        fechaCorte: { type: string, format: date }
+        carteraActiva: { $ref: '#/components/schemas/Monto' }
+        montoEnRiesgo: { $ref: '#/components/schemas/Monto' }
+        porcentaje: { type: string, example: '7.00', description: Nunca se reporta solo. }
+        totalIncobrables: { $ref: '#/components/schemas/Monto' }
+    Cierre:
+      type: object
+      required: [fechaCorte, tipo, cartera]
+      properties:
+        fechaCorte: { type: string, format: date }
+        tipo: { type: string, enum: [diario, mensual] }
+        desembolsos: { $ref: '#/components/schemas/Monto' }
+        recuperaciones: { $ref: '#/components/schemas/Monto' }
+        cartera: { $ref: '#/components/schemas/CarteraRiesgo' }
