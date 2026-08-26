@@ -1,5 +1,5 @@
 @startuml actividad-cierre-mensual
-title Cierre mensual (mismo esqueleto que el diario: Template Method)
+title Cierre mensual
 
 start
 :Fijar fecha de corte\n(idempotencia: reejecutar = mismo resultado);
@@ -15,7 +15,7 @@ endif
 :Marcar mora y calcular tramos\n(clasificación derivada, ambas direcciones);
 :Calcular cartera en riesgo por tramo\n(más de 30 días + reestructurados);
 :Sumar lo dado por incobrable en el período;
-:Congelar cifras del período\n(mayor append-only: saldos nunca se sobrescriben);
+:Congelar cifras del período\n(saldos nunca se sobrescriben);
 :Reportar % cartera en riesgo\nJUNTO con incobrables del período;
 stop
 @enduml
