@@ -1,17 +1,7 @@
 /**
- * estado-credito.ts — Ciclo de vida del crédito (sección 6.7).
- *
- * Reglas de negocio (6.7 / 6.7.1):
- *  - Tabla de transiciones completa como código (patrón State, GoF):
- *    cualquier par (estado, evento) no listado lanza error.
- *    Las transiciones inválidas son imposibles por diseño, no por un if.
- *  - Los tramos de mora NO son estados: son clasificación derivada de
- *    los días vigentes (se calcula con clasificarTramo, reversible).
- *  - Todo cambio queda en historial append-only con fecha, usuario y
- *    motivo; nunca se borra (trazabilidad de auditoría).
- *  - La reestructuración no borra el pasado: el crédito queda marcado
- *    y sigue contando en cartera en riesgo aunque vuelva a vigente (6.8).
- *  - Incobrable es baja CONTABLE: el crédito no regresa a cartera.
+ * estado-credito.ts — Ciclo de vida del crédito (P1 6.7 + CP-04.1 del P2).
+ * CP-04.1: se agrega la transición en_mora → cancelado con el evento
+ * PAGO_ULTIMA_CUOTA. 
  */
 import { clasificarTramo, type TramoMora } from './calculadora-mora';
 
@@ -43,8 +33,8 @@ export const esTerminal = (e: EstadoCredito): boolean =>
   e === 'cancelado' || e === 'incobrable' || e === 'rechazado' || e === 'anulado';
 
 /**
- * Tabla 6.7.1 hecha código. Si el par (estado, evento) no existe aquí,
- * la transición es inválida y se lanza error (invariante 6.10).
+ * Tabla 6.7.1 + CP-04.1 hecha código. Si el par (estado, evento) no existe
+ * aquí, la transición es inválida y se lanza error (invariante P1 6.10).
  */
 export function siguienteEstado(
   estado: EstadoCredito,
@@ -73,6 +63,9 @@ export function siguienteEstado(
       if (evento.tipo === 'DECLARAR_INCOBRABLE' && evento.dias > 120) {
         return 'incobrable';
       }
+      // CP-04.1: un crédito en mora que liquida todo su saldo se cancela.
+      // Guarda (en el caso de uso): saldo = 0.00 exacto y sin cuotas vencidas.
+      if (evento.tipo === 'PAGO_ULTIMA_CUOTA') return 'cancelado';
       break;
     case 'reestructurado':
       if (evento.tipo === 'ATRASO' && evento.dias >= 1) return 'en_mora';
