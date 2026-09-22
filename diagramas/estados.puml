@@ -1,5 +1,5 @@
 @startuml estados-credito
-title Ciclo de vida del crédito (tabla 6.7.1 completa, con regularización)
+title Ciclo de vida del crédito (tabla 6.7.1 + CP-04.1 del Proyecto 2)
 
 [*] --> solicitado
 
@@ -16,6 +16,7 @@ en_mora --> vigente : Paga TODO lo vencido\n[díasAtraso = 0] REGULARIZA
 en_mora --> en_mora : Paga PARTE o sube de tramo\n[tramo derivado sube o baja]
 en_mora --> reestructurado : Acuerdo nuevas condiciones\n[comité autoriza]
 en_mora --> incobrable : Supera 120 días sin arreglo\n[díasAtraso > 120]
+en_mora --> cancelado : CP-04.1 liquida todo el saldo\n[saldo = 0.00 y sin cuotas vencidas]
 
 reestructurado --> vigente : Cumple nuevo plan al día\n[sigue marcado en riesgo]
 reestructurado --> en_mora : Se atrasa en nuevo plan\n[díasAtraso >= 1]
