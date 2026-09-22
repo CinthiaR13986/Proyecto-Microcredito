@@ -8,6 +8,7 @@
     "reporte": "tsx src/demo/reporte.ts",
     "demo": "tsx src/demo/consola.ts",
     "interactivo": "tsx src/demo/interactivo.ts",
+    "demo:mora": "tsx src/demo/mora-escalonada.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit"
