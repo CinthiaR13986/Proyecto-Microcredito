@@ -1,0 +1,30 @@
+@startuml flujo-sin-conexion
+title Pago registrado sin señal (PWA) — idempotencia + puerto Reloj
+
+actor "Asesor en campo" as Asesor
+participant "App PWA" as App
+participant "Cola local\n(IndexedDB)" as Cola
+participant "Service Worker" as SW
+participant "API REST\n(Proyecto Final)" as API
+participant "Núcleo\n(puertos primarios)" as Nucleo
+
+Asesor -> App : Captura pago Q500 (sin señal)
+App -> App : fechaCorte = fecha de captura\n(Reloj del dispositivo como parámetro)
+App -> Cola : guardar {uuid idempotencia, fechaCorte, rubros}\nestado EN_COLA
+App --> Asesor : Banner "Sin señal: pago guardado,\nse enviará al reconectar"
+
+|||
+SW -> Cola : detecta reconexión
+Cola -> API : POST /pagos\nX-Idempotency-Key: uuid\nfechaCorte en el cuerpo
+API -> Nucleo : aplicarPago con fechaCorte recibida\n(prelación + política por otorgamiento)
+Nucleo --> API : aplicados + estado resultante
+API --> Cola : 200 OK
+Cola -> App : estado REGISTRADO
+App --> Asesor : Comprobante con prelación
+
+note right of API
+  Reintentar con la misma clave
+  NO cobra dos veces (P1 6.10).
+  Misma clave con cuerpo distinto → 409.
+end note
+@enduml
