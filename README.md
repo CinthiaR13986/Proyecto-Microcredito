@@ -1,167 +1,128 @@
-# Sistema de Gestión de Microcrédito — Crédito Vecino, S. A.
+# Sistema de Gestión de Microcrédito (SGMC) — Crédito Vecino, S.A.
 
-**Proyecto 1 — Arquitectura y diseño de componentes**
-Análisis de Sistemas II (037) · Universidad Mariano Gálvez de Guatemala · Segundo semestre 2026
+## 🎓 Información Académica
 
-**Autores:** Cinthia Robles, Jermy Pinto, Ezequiel Castro, Frederick Montiel, Heldris Yanes
-**Carné:** 7690-16-13986 · **Sección:** 037 · Modalidad sabatina
-
-**Repositorio:** [https://github.com/tu-usuario/Proyecto-Microcredito]
+* **Institución:** Universidad Mariano Gálvez de Guatemala
+* **Facultad:** Ingeniería en Sistemas
+* **Curso:** Análisis de Sistemas II
+* **Catedrático:** Ing. Ezequiel Urizar
 
 ---
 
-## Requisitos previos
+## 👥 Equipo de Trabajo
 
-Antes de ejecutar el proyecto es necesario tener instaladas las siguientes herramientas:
+* **Ezequiel Alexander Castro Martínez** — *Carné: 7690-21-7934*
+* **Jermi Emanuel Pinto Patzan** — *Carné: 7690-20-11486*
+* **Cinthia Yadira Robles Sotoj** — *Carné: 7690-16-13986*
+* **Heldriss Mariel Yanes Paredes** — *Carné: 7690-17-7258*
+* **Frederick Eduardo Montiel Tórtola** — *Carné: 7690-23-8975*
 
-| Herramienta    | Uso                                 |
-| -------------- | ----------------------------------- |
-| Git            | Clonar y administrar el repositorio |
-| Node.js        | Ejecutar el proyecto TypeScript     |
-| npm            | Administración de dependencias      |
-| TypeScript     | Compilación del proyecto            |
-| Java           | Ejecución local de PlantUML         |
-| PlantUML       | Generación de diagramas             |
-| VS Code        | Editor recomendado                  |
-| Docker         | Requerido para fases posteriores    |
-| Docker Compose | Levantar servicios como PostgreSQL  |
+---
 
-Se recomienda utilizar una versión estable/LTS de Node.js.
+## 🔗 Enlaces del Proyecto
 
-Para comprobar las instalaciones:
+* **Repositorio de Código (GitHub):** https://github.com/CinthiaR13986/Proyecto-Microcredito
+* **Prototipo Navegable (Figma):** https://dean-fixed-18677388.figma.site
 
-```bash
-git --version
-node --version
-npm --version
-java --version
-docker --version
-```
+---
 
-## 📥 Clonar el repositorio
+## 📌 Resumen Ejecutivo
 
-Primero se debe clonar el repositorio desde GitHub.
+El **Sistema de Gestión de Microcrédito (SGMC)** es una solución tecnológica integral diseñada para optimizar y transparentar el ciclo operativo de los microcréditos otorgados por *Crédito Vecino, S.A.*
 
-```bash
-git clone URL_DEL_REPOSITORIO
-```
+El proyecto aborda los desafíos actuales de la institución, tales como la consolidación manual de informes, errores en el cálculo de moras escalonadas, falta de visibilidad en la cartera en riesgo y las dificultades de conectividad intermitente que experimentan los asesores durante su trabajo de campo.
 
-Después ingresar al directorio del proyecto:
+---
 
-```bash
-cd nombre-del-repositorio
-```
+## 🎯 Objetivos del Sistema
 
-Ejemplo:
+1. **Optimización del Análisis Financiero y de Riesgo:** Proveer a la gerencia y al comité de crédito un tablero consolidado que distinga con claridad la *Cartera en Mora* de la *Cartera en Riesgo (PAR30)*, facilitando la toma de decisiones contables oportunas.
+2. **Operatividad Continua en Campo:** Permitir a los asesores financieros registrar solicitudes y cobros aun sin señal de internet, garantizando la integridad de los datos mediante almacenamiento local y resguardo de duplicidad.
+3. **Transparencia hacia el Cliente:** Proporcionar desgloses didácticos y comprensibles sobre la aplicación de pagos, recargos moratorios por tramos y estados de cuenta.
 
-```bash
-git clone https://github.com/usuario/credito-vecino.git
-cd credito-vecino
-```
+---
 
-Debe sustituirse la URL anterior por la URL real del repositorio.
+## 👥 Perfiles de Usuario y Experiencia (UX)
 
-## 📦 Instalar dependencias
+La concepción del sistema se fundamentó en la investigación de usuarios y la metodología de mapas de experiencia (*Journey Maps*), identificando tres perfiles centrales:
 
-Una vez clonado el proyecto, instalar las dependencias de Node.js:
+* **Gerencia de Riesgos y Comité de Crédito (Mauricio):** Requiere un tablero densamente informativo con desglose estricto por tramos de mora, indicadores de liquidez y reportes de cierres consolidados.
+* **Asesor de Crédito (Rafael):** Opera desde dispositivos móviles en zonas rurales con señal inestable. Requiere navegación ágil, cobros claros y seguridad de que sus registros no se duplicarán.
+* **Cliente de Microcrédito (Romana):** Requiere un lenguaje accesible, explicaciones claras sobre los recargos y transparencia total sobre los saldos restantes tras realizar un pago.
 
-```bash
-npm install
-```
+---
 
-Este comando utilizará el archivo:
+## 🏗️ Aspectos Clave de Arquitectura y Diseño
 
-```text
-package.json
-```
+* **Arquitectura PWA (Progressive Web App):** Se seleccionó un modelo de aplicación web progresiva que permite contar con una única base de código responsiva, adaptable tanto a la vista móvil de campo como a la vista gerencial de escritorio.
+* **Estrategia Mobile-First:** La interfaz fue estructurada priorizando las pantallas móviles para el trabajo operativo, expandiendo gradualmente la densidad informativa hacia pantallas de escritorio.
+* **Estrategia ante Pérdida de Conexión (Offline-First):** Las operaciones capturadas en campo sin señal se almacenan localmente en IndexedDB y se sincronizan al recuperar la conexión mediante claves de idempotencia (`X-Idempotency-Key`), evitando cobros dobles.
+* **Accesibilidad y Usabilidad:** El prototipo fue diseñado e inspeccionado bajo las 10 heurísticas de Nielsen y los criterios de accesibilidad WCAG 2.2 Nivel AA, asegurando contrastes adecuados, áreas de toque accesibles y claridad conceptual.
 
-para instalar las dependencias necesarias.
+---
 
-Al finalizar se generará el directorio:
+## 🧪 Pruebas y Demostración
 
-```text
-node_modules/
-```
+Para validar el funcionamiento del sistema se incluyen pruebas automatizadas y una demostración específica del cálculo y comportamiento de la mora.
 
-Este directorio no debe subirse al repositorio Git.
+### Ejecutar las pruebas
 
-## Compilar TypeScript
-
-Para comprobar que el proyecto puede compilarse correctamente:
+Para ejecutar el conjunto de pruebas automatizadas del proyecto, desde la terminal ubicada en el directorio correspondiente del proyecto, utilizar:
 
 ```bash
-npm run build
+npm test
 ```
 
-El código TypeScript será transformado a JavaScript.
+Este comando permite ejecutar las pruebas configuradas para verificar el comportamiento de los componentes y funcionalidades implementadas.
 
-Generalmente los archivos compilados se almacenarán en:
+### Generar demostración de mora
 
-```text
-dist/
-```
-
-Una configuración típica del archivo `package.json` podría contener:
-
-```json
-{
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest"
-  }
-}
-```
-
-## 🚀 Ejecutar en modo desarrollo
-
-Durante el desarrollo se recomienda ejecutar:
+Para generar en consola la demostración relacionada con el cálculo de la mora, ejecutar:
 
 ```bash
-npm run dev
+npm run demo:mora
 ```
 
-Este modo permite ejecutar directamente el proyecto TypeScript y reiniciar automáticamente la aplicación cuando se detectan cambios.
+Este comando permite visualizar en la consola el resultado de la demostración de la lógica de mora implementada en el sistema.
 
-Dependiendo de las herramientas configuradas puede utilizarse:
+> **Nota:** Antes de ejecutar los comandos, asegúrese de haber instalado las dependencias del proyecto mediante `npm install`.
 
-```text
-tsx
-```
+---
 
-o:
+## 🤖 Declaración de Uso de Inteligencia Artificial
 
-```text
-ts-node
-```
+En concordancia con los principios de transparencia académica y ética profesional, el equipo de trabajo declara la utilización de herramientas de Inteligencia Artificial Generativa durante las fases de análisis, síntesis y documentación del proyecto.
 
-## ▶️ Ejecutar versión compilada
+### Herramientas Utilizadas y Ámbitos de Apoyo
 
-Para ejecutar la aplicación a partir del código compilado:
+1. **Google Gemini:**
 
-```bash
-npm run build
-```
+   * Apoyo en la consolidación analítica del documento técnico y la evaluación de hallazgos de usabilidad.
+   * Verificación académica de principios de arquitectura de software (SOLID y GRASP).
+   * Asistencia en la estructuración de la auditoría de accesibilidad WCAG 2.2.
 
-Después:
+2. **ChatGPT (OpenAI):**
 
-```bash
-npm start
-```
+   * Redacción y refinamiento estilístico de las narrativas para los perfiles de usuario (*Personas*).
+   * Elaboración de borradores para la creación de prompts de apoyo en herramientas de maquetado.
+   * Revisión ortográfica y gramatical del contenido general.
 
-El flujo sería:
+3.  **Qwen:**
 
-```text
-Código TypeScript
-       │
-       ▼
-npm run build
-       │
-       ▼
-     dist/
-       │
-       ▼
-npm start
-```
+    * Apoyo en el análisis y revisión de requerimientos funcionales y técnicos del sistema.
+    * Generación de sugerencias para pruebas, validaciones y documentación técnica del proyecto.
 
+
+### Compromiso y Responsabilidad Humana
+
+La Inteligencia Artificial fue empleada exclusivamente como un complemento metodológico para la organización de ideas y la redacción. Todas las decisiones arquitectónicas, validaciones financieras, reglas de negocio, diseños de interfaz e integraciones del sistema fueron concebidas, revisadas y validadas críticamente por los estudiantes integrantes del proyecto.
+
+---
+
+## 🛠️ Herramientas y Metodologías
+
+* **Diseño y Prototipado:** Figma
+* **Enfoque Tecnológico:** PWA (Progressive Web App), TypeScript, React, Tailwind CSS
+* **Metodologías:** Evaluación Heurística de Nielsen, Guías de Accesibilidad WCAG 2.2 AA, Principios SOLID y GRASP
+* **Pruebas:** `npm test`
+* **Demostración de mora:** `npm run demo:mora`
