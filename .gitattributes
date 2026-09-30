@@ -1,0 +1,10 @@
+# Código y archivos de texto normales
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+# Paquete canónico: conservar bytes exactamente
+datos/eventos.jsonl -text
+datos/eventos.sha256 -text

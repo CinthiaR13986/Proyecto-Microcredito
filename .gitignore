@@ -147,3 +147,5 @@ dist/
 # Sistema y ambiente
 .DS_Store
 .env
+
+.pgdata/

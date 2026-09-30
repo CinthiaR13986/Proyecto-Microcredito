@@ -9,6 +9,8 @@
     "demo": "tsx src/demo/consola.ts",
     "interactivo": "tsx src/demo/interactivo.ts",
     "demo:mora": "tsx src/demo/mora-escalonada.ts",
+    "cargar": "tsx src/persistencia/cargar-cli.ts",
+    "db:reset": "node -e \"require('fs').rmSync('.pgdata',{recursive:true,force:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit"
