@@ -31,7 +31,7 @@ export interface ResultadoCarga {
 /** Pagos con efecto real: primera aparición de cada clave (P1 6.10). */
 export const SQL_PAGOS_APLICADOS = `
   select distinct on (clave_idempotencia)
-         clave_idempotencia, id_credito, fecha, monto_centavos, canal
+         clave_idempotencia, id_credito, fecha::text as fecha, monto_centavos, canal
   from pagos
   order by clave_idempotencia, seq
 `;
