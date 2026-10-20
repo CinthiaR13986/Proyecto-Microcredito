@@ -5,6 +5,11 @@
 *.json text eol=lf
 *.md text eol=lf
 * text=auto
+*.jsx text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+
 
 # Paquete canónico: conservar bytes exactamente
 datos/eventos.jsonl -text
