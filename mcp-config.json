@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "credito-vecino": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/servidor.ts"],
+      "cwd": "."
+    }
+  }
+}

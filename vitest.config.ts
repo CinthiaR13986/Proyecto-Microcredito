@@ -5,6 +5,8 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    testTimeout: 20000,   // llamadas al servidor MCP
+    hookTimeout: 60000,   // beforeAll que levanta el servidor
     coverage: {
       provider: 'v8',
       include: ['src/dominio/**/*.ts'],

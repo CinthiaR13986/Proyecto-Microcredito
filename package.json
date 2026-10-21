@@ -12,6 +12,7 @@
     "cargar": "tsx src/persistencia/cargar-cli.ts",
     "verificar": "tsx src/servicios/verificar.ts",
     "api": "tsx src/api/servidor.ts",
+    "mcp": "tsx src/mcp/servidor.ts",
     "db:reset": "node -e \"require('fs').rmSync('.pgdata',{recursive:true,force:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -28,11 +29,13 @@
   "type": "module",
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "cors": "^2.8.6",
     "date-fns": "^4.4.0",
     "decimal.js": "^10.6.0",
     "express": "^5.3.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
