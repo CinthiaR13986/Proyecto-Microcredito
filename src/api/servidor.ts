@@ -1,11 +1,6 @@
 /**
- * servidor.ts — E1 · API REST sobre los puertos primarios del Proyecto 1.
- *
- * Aquí NO hay reglas de negocio: todo se delega a servicios (reconstructor,
- * reportes) y al núcleo P1/P2. Convención uniforme de errores:
- *   { error: { codigo, mensaje, detalles? } }
- * Códigos: 400 validación/fecha · 404 inexistente · 409 clave duplicada ·
- * 422 regla de negocio (incobrable, cuota pagada, monto no exacto).
+ * servidor.ts — E1 + E5 · API REST sobre los puertos del Proyecto 1.
+ * Incluye endpoints para el Chat Gerencial (RAG + MCP).
  */
 import express, { type Response } from 'express';
 import cors from 'cors';
@@ -43,6 +38,7 @@ import {
   PagoRequestSchema,
   SimulacionQuerySchema,
 } from './esquemas';
+import { recuperar } from '../rag/recuperador';
 
 const dinero = (d: Dinero) => ({ centavos: aCentavos(d), texto: d.aNumero().toFixed(2) });
 
@@ -93,7 +89,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const db = await crearConexion('.pgdata');
+const db = await crearConexion();
 
 async function contexto(): Promise<ContextoCartera> {
   return {
@@ -131,7 +127,7 @@ async function detalleDe(id: string, corte: string) {
   return { ctx, fila, detalle };
 }
 
-// ── Crédito: detalle, mora y deuda ────────────────────────────────
+// ── Endpoints existentes (E1) ─────────────────────────────────────
 app.get('/api/creditos/:id', async (req, res) => {
   const q = CorteQuerySchema.safeParse(req.query);
   if (!q.success) return error(res, 400, 'FECHA_INVALIDA', 'La fecha de corte debe ser AAAA-MM-DD.');
@@ -172,7 +168,6 @@ app.get('/api/creditos/:id/deuda', async (req, res) => {
   res.json({ id: detalle.id, corte: q.data.corte, exigible: detalleJson(detalle).deuda });
 });
 
-// ── Pagos: rechazo por incobrable, cuota pagada, monto no exacto, clave repetida ──
 app.post('/api/pagos', async (req, res) => {
   const parsed = PagoRequestSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -180,7 +175,6 @@ app.post('/api/pagos', async (req, res) => {
   }
   const { id_credito, clave_idempotencia, monto_centavos, canal, fecha } = parsed.data;
 
-  // Idempotencia P1 6.10: misma clave → no se aplica dos veces.
   const existente = await db.query<{ fecha: string; monto_centavos: number | string; canal: string }>(
     'select fecha, monto_centavos, canal from pagos where clave_idempotencia = $1',
     [clave_idempotencia],
@@ -221,7 +215,6 @@ app.post('/api/pagos', async (req, res) => {
   });
 });
 
-// ── Originación (OP-3): alta de cliente y desembolso ──────────────
 app.post('/api/clientes', async (req, res) => {
   const parsed = ClienteRequestSchema.safeParse(req.body);
   if (!parsed.success) return error(res, 400, 'VALIDACION_ERROR', 'Datos del cliente inválidos.', parsed.error.issues);
@@ -275,7 +268,6 @@ app.post('/api/creditos', async (req, res) => {
   res.status(201).json({ id_credito: d.id_credito, politica_mora: politica, detalle: detalle ? detalleJson(detalle) : null });
 });
 
-// ── Gerencia: cartera, cierres, vencimientos, morosos ─────────────
 app.get('/api/cartera', async (req, res) => {
   const q = CorteQuerySchema.safeParse(req.query);
   if (!q.success) return error(res, 400, 'FECHA_INVALIDA', 'La fecha de corte debe ser AAAA-MM-DD.');
@@ -357,8 +349,7 @@ app.get('/api/morosos', async (req, res) => {
   });
 });
 
-// ... imports existentes ...
-import { recuperar } from '../rag/recuperador';
+// ── Endpoints del Chat Gerencial (E5) ─────────────────────────────
 
 // POST /api/rag/consultar → recupera fragmentos del corpus con citación
 app.post('/api/rag/consultar', async (req, res) => {
@@ -377,46 +368,69 @@ app.post('/api/mcp/ejecutar', async (req, res) => {
   try {
     const { herramienta, argumentos, aprobacionHumana } = req.body;
     
-    // Seguridad: registrar_pago exige aprobación humana explícita
     if (herramienta === 'registrar_pago' && !aprobacionHumana) {
       return res.status(403).json({ 
-        error: { 
-          codigo: 'APROBACION_REQUERIDA', 
-          mensaje: 'Esta acción mueve dinero y requiere aprobación humana explícita.' 
-        } 
+        error: { codigo: 'APROBACION_REQUERIDA', mensaje: 'Esta acción requiere aprobación humana.' } 
       });
     }
 
-    // Simulación de llamada al servidor MCP interno
-    // En producción, esto llamaría al cliente MCP real. Aquí replicamos la lógica
-    // usando los mismos servicios que usa el servidor MCP para garantizar coherencia.
     let resultado;
+    const ctx = await contexto();
+    
     switch (herramienta) {
-      case 'consultar_credito':
-        const { fila, detalle } = await detalleDe(argumentos.id_credito, argumentos.corte);
+      case 'consultar_credito': {
+        const { detalle } = await detalleDe(argumentos.id_credito as string, argumentos.corte as string);
         if (!detalle) throw new Error('Crédito no encontrado');
-        resultado = { id: detalle.id, estado: detalle.estado, diasAtraso: detalle.diasAtraso, saldoCapital: dinero(detalle.saldoCapital) };
+        resultado = { 
+          id: detalle.id, 
+          estado: detalle.estado, 
+          diasAtraso: detalle.diasAtraso, 
+          saldoCapital: dinero(detalle.saldoCapital),
+          tramo: detalle.tramo
+        };
         break;
-      case 'calcular_deuda':
-        const { detalle: dDeuda } = await detalleDe(argumentos.id_credito, argumentos.corte);
-        if (!dDeuda?.deuda) throw new Error('Sin deuda vencida');
-        resultado = { total: dinero(dDeuda.deuda.total), desglose: dDeuda.deuda };
+      }
+      case 'calcular_deuda': {
+        const { detalle } = await detalleDe(argumentos.id_credito as string, argumentos.corte as string);
+        if (!detalle?.deuda) throw new Error('Sin deuda vencida');
+        resultado = { 
+          total: dinero(detalle.deuda.total), 
+          desglose: {
+            gastos: dinero(detalle.deuda.gastos),
+            moratorio: dinero(detalle.deuda.interesMoratorio),
+            corriente: dinero(detalle.deuda.interesCorriente),
+            capital: dinero(detalle.deuda.capital)
+          }
+        };
         break;
-      case 'consultar_cartera':
-        const cartera = carteraAlCorte(await contexto(), argumentos.corte);
-        resultado = { activa: dinero(cartera.carteraActiva), mora: dinero(cartera.carteraEnMora), riesgo: dinero(cartera.carteraEnRiesgo), porcentajeRiesgo: cartera.porcentajeRiesgo };
+      }
+      case 'consultar_cartera': {
+        const cartera = carteraAlCorte(ctx, argumentos.corte as string);
+        resultado = { 
+          activa: dinero(cartera.carteraActiva), 
+          mora: dinero(cartera.carteraEnMora), 
+          riesgo: dinero(cartera.carteraEnRiesgo), 
+          porcentajeRiesgo: cartera.porcentajeRiesgo,
+          porcentajeMora: cartera.porcentajeEnMora
+        };
         break;
-      case 'registrar_pago':
-        // Lógica simplificada para el demo: insertar y devolver estado
+      }
+      case 'registrar_pago': {
+        // Validación básica antes de insertar
+        const { detalle } = await detalleDe(argumentos.id_credito as string, argumentos.fecha as string);
+        if (!detalle) throw new Error('Crédito no encontrado');
+        if (detalle.estado === 'incobrable') throw new Error('Crédito incobrable');
+        
         await db.query(
           'insert into pagos (clave_idempotencia, id_credito, fecha, monto_centavos, canal) values ($1,$2,$3,$4,$5)',
           [argumentos.clave_idempotencia, argumentos.id_credito, argumentos.fecha, argumentos.monto_centavos, argumentos.canal]
         );
-        const { detalle: dPago } = await detalleDe(argumentos.id_credito, argumentos.fecha);
-        resultado = { estado: 'registrado', nuevoEstado: dPago?.estado };
+        const { detalle: dPago } = await detalleDe(argumentos.id_credito as string, argumentos.fecha as string);
+        resultado = { estado: 'registrado', nuevoEstado: dPago?.estado, nuevoTramo: dPago?.tramo };
         break;
+      }
       default:
-        throw new Error(`Herramienta ${herramienta} no implementada en el proxy de API`);
+        throw new Error(`Herramienta ${herramienta} no implementada`);
     }
     res.json(resultado);
   } catch (e) {

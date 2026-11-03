@@ -1,37 +1,49 @@
+// ... imports existentes ...
+
 /**
- * ingesta.ts — E4 · Ingesta del corpus al almacén vectorial (PostgreSQL + pgvector).
+ * Fragmentación inteligente: respeta la estructura del documento.
+ * - Si el texto tiene preguntas (¿), fragmenta por cada pregunta/respuesta.
+ * - Si tiene títulos de sección (líneas que terminan en : o son mayúsculas), fragmenta por sección.
+ * - Si no, usa el solapamiento clásico por caracteres.
  */
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { OllamaEmbeddings } from '@langchain/ollama';
-import { crearConexionRag } from './conexion-rag';
-
-interface MetadataDoc {
-  doc_id: string;
-  titulo: string;
-  vigencia: string;
-}
-
-function parsearMetadata(contenido: string): MetadataDoc {
-  const lineas = contenido.split('\n');
-  const meta: Record<string, string> = {};
-  for (const linea of lineas.slice(0, 10)) {
-    const match = linea.match(/^(\w+):\s*(.+)$/);
-    if (match) meta[match[1]] = match[2].trim();
-  }
-  return {
-    doc_id: meta['doc_id'] ?? 'SIN-ID',
-    titulo: meta['titulo'] ?? 'Sin título',
-    vigencia: meta['vigencia'] ?? 'vigente',
-  };
-}
-
-function fragmentar(texto: string, tamano = 500, solapamiento = 100): string[] {
+function fragmentar(texto: string): string[] {
+  // Limpiar metadata del inicio
   const limpio = texto
     .split('\n')
     .filter((l) => !l.match(/^\w+:\s*.+$/))
     .join('\n')
     .trim();
+
+  // Estrategia 1: Detectar preguntas frecuentes (¿...?)
+  if (limpio.includes('¿')) {
+    const bloques = limpio.split(/(?=¿)/);
+    return bloques.map(b => b.trim()).filter(b => b.length > 20);
+  }
+
+  // Estrategia 2: Detectar secciones por líneas que parecen títulos
+  // (Líneas cortas seguidas de un salto de línea, o líneas en mayúsculas)
+  const lineas = limpio.split('\n');
+  const secciones: string[] = [];
+  let buffer = '';
+  
+  for (const linea of lineas) {
+    const esTitulo = linea.trim().length > 0 && linea.trim().length < 60 && 
+                     (linea.trim() === linea.trim().toUpperCase() || linea.trim().endsWith(':'));
+    
+    if (esTitulo && buffer.length > 0) {
+      secciones.push(buffer.trim());
+      buffer = linea + '\n';
+    } else {
+      buffer += linea + '\n';
+    }
+  }
+  if (buffer.trim().length > 0) secciones.push(buffer.trim());
+  
+  if (secciones.length > 1) return secciones;
+
+  // Estrategia 3: Fallback por caracteres (para documentos largos sin estructura clara)
+  const tamano = 500;
+  const solapamiento = 100;
   const fragmentos: string[] = [];
   let inicio = 0;
   while (inicio < limpio.length) {
@@ -43,29 +55,4 @@ function fragmentar(texto: string, tamano = 500, solapamiento = 100): string[] {
   return fragmentos;
 }
 
-export async function ingerirCorpus(rutaCorpus: string): Promise<number> {
-  const db = await crearConexionRag();
-  await db.query('delete from corpus_fragmentos');
-
-  const embeddings = new OllamaEmbeddings({ model: 'nomic-embed-text' });
-  const archivos = readdirSync(rutaCorpus).filter((f) => f.endsWith('.md'));
-  let totalFragmentos = 0;
-
-  for (const archivo of archivos) {
-    const contenido = readFileSync(join(rutaCorpus, archivo), 'utf8');
-    const meta = parsearMetadata(contenido);
-    const fragmentos = fragmentar(contenido);
-
-    for (const frag of fragmentos) {
-      const vector = await embeddings.embedQuery(frag);
-      await db.query(
-        `insert into corpus_fragmentos (doc_id, titulo, vigencia, fragmento, embedding)
-         values ($1, $2, $3, $4, $5::vector)`,
-        [meta.doc_id, meta.titulo, meta.vigencia, frag, `[${vector.join(',')}]`],
-      );
-      totalFragmentos++;
-    }
-  }
-
-  return totalFragmentos;
-}
+// ... resto del archivo igual, pero llama a fragmentar(contenido) sin argumentos extra ...

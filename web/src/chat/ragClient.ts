@@ -16,6 +16,15 @@ export async function consultarRag(pregunta: string): Promise<RespuestaRag> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pregunta }),
   });
-  if (!r.ok) throw new Error('Error consultando RAG');
-  return r.json();
+  
+  const text = await r.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    throw new Error('El servidor no respondió con JSON. ¿Está corriendo npm run api?');
+  }
+
+  if (!r.ok) throw new Error(data.error?.mensaje || 'Error consultando RAG');
+  return data;
 }

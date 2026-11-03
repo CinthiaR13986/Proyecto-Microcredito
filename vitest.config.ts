@@ -1,16 +1,16 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'node',
-    include: ['tests/**/*.test.ts'],
-    testTimeout: 20000,   // llamadas al servidor MCP
-    hookTimeout: 60000,   // beforeAll que levanta el servidor
-    coverage: {
-      provider: 'v8',
-      include: ['src/dominio/**/*.ts'],
-      reporter: ['text', 'html'],
+  plugins: [react(), tailwindcss()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 });
