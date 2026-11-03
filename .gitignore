@@ -149,3 +149,4 @@ dist/
 .env
 
 .pgdata/
+.pgdata-rag/

@@ -1,17 +1,18 @@
 /**
- * Gerencia — tablero + cierres + espacio reservado al chat.
+ * Gerencia.tsx — Tablero gerencial, cierres y chat integrado (E1 + E5).
  *
- * Reglas del enunciado E1:
+ * Reglas del enunciado:
  *  - La cartera ACTIVA se muestra (es el denominador de los porcentajes).
  *  - La cartera EN MORA y la EN RIESGO van en bloques separados, con
  *    rótulo y definición propios (hallazgo sev. 4 de E5).
  *  - El cierre desglosa las recuperaciones por concepto
  *    (gastos, moratorio, corriente, capital).
- *  - El chat del asistente vive en un panel lateral reservado.
+ *  - El chat del asistente (E5) vive integrado en esta misma pantalla.
  */
 import { useEffect, useState } from 'react';
 import { api, q, type CarteraDTO, type CierreDTO } from '../api/cliente';
 import { CORTE } from '../api/corte';
+import { ChatWidget } from '../chat/ChatWidget';
 
 type VistaG = 'tablero' | 'cierre-diario' | 'cierre-mensual';
 
@@ -56,7 +57,8 @@ export function Gerencia() {
   if (!cartera || !cierreD || !cierreM) return null;
 
   return (
-    <main className="p-4 sm:p-6 max-w-[1400px] mx-auto">
+    <main className="p-4 sm:p-6 max-w-[1400px] mx-auto pb-24">
+      {/* Navegación de vistas */}
       <div className="flex flex-wrap gap-2 mb-4">
         {([
           ['tablero', 'Tablero'],
@@ -78,19 +80,13 @@ export function Gerencia() {
         </span>
       </div>
 
+      {/* Contenido según la vista seleccionada */}
       {vista === 'tablero' && <Tablero c={cartera} />}
       {vista === 'cierre-diario' && <Cierre c={cierreD} titulo={`Cierre diario · ${CORTE}`} />}
       {vista === 'cierre-mensual' && <Cierre c={cierreM} titulo={`Cierre mensual · ${CORTE.slice(0, 7)}`} />}
 
-      <aside className="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-4">
-        <p className="text-xs text-slate-600 uppercase tracking-wide mb-1">Reservado · Proyecto Final</p>
-        <p className="font-medium text-sm">Asistente gerencial (chat)</p>
-        <p className="text-xs text-slate-500 mt-1">
-          Este panel acogerá el chat del asistente: responderá G-1 a G-8 en lenguaje natural
-          usando el mismo núcleo que alimenta este tablero, para que las cifras coincidan
-          siempre.
-        </p>
-      </aside>
+      {/* Chat Gerencial Integrado (E5) */}
+      <ChatWidget />
     </main>
   );
 }

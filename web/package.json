@@ -11,11 +11,15 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "cors": "^2.8.6",
+    "express": "^5.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

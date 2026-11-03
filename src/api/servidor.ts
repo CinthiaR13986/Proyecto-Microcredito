@@ -357,6 +357,73 @@ app.get('/api/morosos', async (req, res) => {
   });
 });
 
+// ... imports existentes ...
+import { recuperar } from '../rag/recuperador';
+
+// POST /api/rag/consultar → recupera fragmentos del corpus con citación
+app.post('/api/rag/consultar', async (req, res) => {
+  try {
+    const { pregunta } = req.body;
+    if (!pregunta) return error(res, 400, 'VALIDACION_ERROR', 'Falta la pregunta.');
+    const resultado = await recuperar(pregunta);
+    res.json(resultado);
+  } catch (e) {
+    error(res, 500, 'ERROR_RAG', e instanceof Error ? e.message : String(e));
+  }
+});
+
+// POST /api/mcp/ejecutar → ejecuta una herramienta MCP (con aprobación si es sensible)
+app.post('/api/mcp/ejecutar', async (req, res) => {
+  try {
+    const { herramienta, argumentos, aprobacionHumana } = req.body;
+    
+    // Seguridad: registrar_pago exige aprobación humana explícita
+    if (herramienta === 'registrar_pago' && !aprobacionHumana) {
+      return res.status(403).json({ 
+        error: { 
+          codigo: 'APROBACION_REQUERIDA', 
+          mensaje: 'Esta acción mueve dinero y requiere aprobación humana explícita.' 
+        } 
+      });
+    }
+
+    // Simulación de llamada al servidor MCP interno
+    // En producción, esto llamaría al cliente MCP real. Aquí replicamos la lógica
+    // usando los mismos servicios que usa el servidor MCP para garantizar coherencia.
+    let resultado;
+    switch (herramienta) {
+      case 'consultar_credito':
+        const { fila, detalle } = await detalleDe(argumentos.id_credito, argumentos.corte);
+        if (!detalle) throw new Error('Crédito no encontrado');
+        resultado = { id: detalle.id, estado: detalle.estado, diasAtraso: detalle.diasAtraso, saldoCapital: dinero(detalle.saldoCapital) };
+        break;
+      case 'calcular_deuda':
+        const { detalle: dDeuda } = await detalleDe(argumentos.id_credito, argumentos.corte);
+        if (!dDeuda?.deuda) throw new Error('Sin deuda vencida');
+        resultado = { total: dinero(dDeuda.deuda.total), desglose: dDeuda.deuda };
+        break;
+      case 'consultar_cartera':
+        const cartera = carteraAlCorte(await contexto(), argumentos.corte);
+        resultado = { activa: dinero(cartera.carteraActiva), mora: dinero(cartera.carteraEnMora), riesgo: dinero(cartera.carteraEnRiesgo), porcentajeRiesgo: cartera.porcentajeRiesgo };
+        break;
+      case 'registrar_pago':
+        // Lógica simplificada para el demo: insertar y devolver estado
+        await db.query(
+          'insert into pagos (clave_idempotencia, id_credito, fecha, monto_centavos, canal) values ($1,$2,$3,$4,$5)',
+          [argumentos.clave_idempotencia, argumentos.id_credito, argumentos.fecha, argumentos.monto_centavos, argumentos.canal]
+        );
+        const { detalle: dPago } = await detalleDe(argumentos.id_credito, argumentos.fecha);
+        resultado = { estado: 'registrado', nuevoEstado: dPago?.estado };
+        break;
+      default:
+        throw new Error(`Herramienta ${herramienta} no implementada en el proxy de API`);
+    }
+    res.json(resultado);
+  } catch (e) {
+    error(res, 500, 'ERROR_MCP', e instanceof Error ? e.message : String(e));
+  }
+});
+
 app.listen(8080, () => {
   console.log('✔ API de Crédito Vecino en http://localhost:8080 (corte canónico 2026-10-31)');
 });
