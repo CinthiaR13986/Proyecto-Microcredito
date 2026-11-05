@@ -1,16 +1,11 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-      },
-    },
+  test: {
+    include: ['tests/**/*.test.ts'],
+    exclude: ['tests/evals/**', 'node_modules/**', 'web/**'],
+    testTimeout: 30000,
+    hookTimeout: 60000,
+    fileParallelism: false,
   },
 });

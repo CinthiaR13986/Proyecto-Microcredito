@@ -2,6 +2,7 @@
  * conexion.ts — Conexión a PostgreSQL para el núcleo y el cargador canónico.
  * En pruebas, usa TEST_DATABASE_URL si está definida; si no, la normal.
  */
+import '../config';
 import { Pool } from 'pg';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -20,6 +20,7 @@ import { aplicarPago, type Rubros } from '../dominio/prelacion-pago';
 import { clasificarTramo, type TramoMora } from '../dominio/calculadora-mora';
 import {
   POLITICA_ESCALONADA,
+  TARIFAS,
   tramosRecorridos,
   type LineaTramo,
 } from '../dominio/politica-mora/politica-escalonada';
@@ -68,6 +69,42 @@ export function deCentavos(centavos: number | string): Dinero {
 /** Dinero → centavos enteros (para la API y la base). */
 export const aCentavos = (d: Dinero): number => Math.round(d.aNumero() * 100);
 
+/** Tasa de POL-2024-01 (la misma que usa POLITICA_PLANA, P1 6.5). */
+const TNA_PLANA = '0.24';
+
+/**
+ * Desglose de la mora por tramos recorridos, coherente con la política del
+ * crédito: la escalonada cobra cada tramo a su tasa (POL-2026-10); la plana
+ * recorre los mismos tramos pero todos a 24 % (POL-2024-01). Así la suma de
+ * las líneas cuadra siempre con politica.interesMoratorio().
+ */
+export function desgloseMora(codigoPolitica: string, capitalEnMora: Dinero, dias: number): readonly LineaTramo[] {
+  if (codigoPolitica === POLITICA_ESCALONADA.codigo) return tramosRecorridos(capitalEnMora, dias);
+  const d = Math.min(Math.max(dias, 0), 120);
+  const capital = capitalEnMora.aNumero();
+  return TARIFAS.map((t) => ({ t, diasEnTramo: Math.max(0, Math.min(d, t.fin) - t.ini + 1) }))
+    .filter((x) => x.diasEnTramo > 0)
+    .map(({ t, diasEnTramo }) => ({
+      tramo: t.tramo,
+      tasaTna: TNA_PLANA,
+      diasEnTramo,
+      montoSinRedondear: (capital * Number(TNA_PLANA) * diasEnTramo) / 360,
+    }));
+}
+
+/** Mora de UNA cuota vencida e impaga al corte (G-5, G-7). */
+export interface MoraCuota {
+  numero: number;
+  vencimiento: string;
+  diasAtraso: number;
+  capitalEnMora: Dinero;
+  /** Moratorio devengado total de la cuota (redondeo único). */
+  moratorioDevengado: Dinero;
+  moratorioPagado: Dinero;
+  moratorioPendiente: Dinero;
+  lineas: readonly LineaTramo[];
+}
+
 const iso = (f: Date): string => format(f, 'yyyy-MM-dd');
 const noNeg = (d: Dinero): Dinero => (d.esNegativo() ? Dinero.cero() : d);
 const sumaRubros = (r: Rubros): Dinero =>
@@ -105,6 +142,8 @@ export interface DetalleCredito {
   proximaCuota: { numero: number; vencimiento: string; monto: Dinero } | null;
   deuda: (Rubros & { total: Dinero; cuotaNumero: number }) | null;
   lineasMora: readonly LineaTramo[];
+  /** Mora de cada cuota vencida e impaga al corte, en orden de cuota. */
+  moraPorCuota: MoraCuota[];
   interesEnSuspenso: Dinero;
   aplicaciones: AplicacionPago[];
 }
@@ -234,7 +273,26 @@ export function reconstruirCredito(
       total: gastos.sumar(interesMoratorio).sumar(interesCorriente).sumar(capital),
       cuotaNumero: primeraImpaga.numero,
     };
-    lineasMora = tramosRecorridos(capitalEnMora, diasMora);
+    lineasMora = desgloseMora(credito.politica_mora, capitalEnMora, diasMora);
+  }
+
+  const moraPorCuota: MoraCuota[] = [];
+  for (let i = 0; i < cuotas.length; i++) {
+    const q = cuotas[i]!;
+    if (q.pagada || q.diasAtrasoAlCorte < 1) continue;
+    const diasQ = Math.min(q.diasAtrasoAlCorte, 120);
+    const capitalEnMora = q.amortizacion.restar(capP[i]!);
+    const devengado = politica.interesMoratorio(capitalEnMora, diasQ);
+    moraPorCuota.push({
+      numero: q.numero,
+      vencimiento: q.vencimiento,
+      diasAtraso: q.diasAtrasoAlCorte,
+      capitalEnMora,
+      moratorioDevengado: devengado,
+      moratorioPagado: morP[i]!,
+      moratorioPendiente: noNeg(devengado.restar(morP[i]!)),
+      lineas: desgloseMora(credito.politica_mora, capitalEnMora, diasQ),
+    });
   }
 
   const interesEnSuspenso =
@@ -256,6 +314,7 @@ export function reconstruirCredito(
       : null,
     deuda,
     lineasMora,
+    moraPorCuota,
     interesEnSuspenso,
     aplicaciones,
   };

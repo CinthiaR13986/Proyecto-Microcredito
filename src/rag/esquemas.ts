@@ -15,8 +15,11 @@ export interface FragmentoCitado {
   doc_id: string;
   titulo: string;
   vigencia: string;
+  seccion: string;
   texto: string;
   puntaje: number;
+  /** true si el fragmento contiene instrucciones dirigidas a la IA (OP-7). */
+  sospechoso: boolean;
 }
 
 export interface RespuestaRag {

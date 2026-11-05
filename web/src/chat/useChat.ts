@@ -1,54 +1,100 @@
-import { useState, useCallback } from 'react';
-import { procesarPregunta, type MensajeChat } from './orchestrator';
-import { ejecutarMcp } from './mcpClient';
+import { useCallback, useState } from 'react';
+import { agente, type FuenteCitada, type PropuestaPago, type TrazaHerramienta } from './agenteClient';
+
+export interface MensajeChat {
+  rol: 'usuario' | 'asistente' | 'sistema';
+  texto: string;
+  herramientas?: TrazaHerramienta[];
+  fuentes?: FuenteCitada[];
+  alertaSeguridad?: string;
+}
+
+const BIENVENIDA: MensajeChat = {
+  rol: 'asistente',
+  texto:
+    'Hola, soy el asistente gerencial de Crédito Vecino. Consulto la cartera, cierres, créditos y mora a través del núcleo del sistema, explico las políticas citando su fuente y puedo proponer pagos, que siempre requieren tu aprobación.',
+};
+
+function describirResultado(r: unknown): string {
+  const e = r as { error?: { codigo?: string; mensaje?: string } };
+  if (e?.error) return `${e.error.codigo ?? 'ERROR'}: ${e.error.mensaje ?? ''}`;
+  return JSON.stringify(r);
+}
 
 export function useChat() {
-  const [mensajes, setMensajes] = useState<MensajeChat[]>([
-    { rol: 'asistente', texto: 'Hola, soy el asistente gerencial de Crédito Vecino. Puedo responder consultas sobre la cartera (G-1 a G-8), explicar políticas citando fuentes, o ayudarte a registrar pagos con tu aprobación.' },
-  ]);
+  // Sesión por pestaña: el servidor guarda la memoria de la conversación.
+  const [sesion, setSesion] = useState(() => crypto.randomUUID());
+  const [mensajes, setMensajes] = useState<MensajeChat[]>([BIENVENIDA]);
   const [cargando, setCargando] = useState(false);
-  const [esperandoAprobacion, setEsperandoAprobacion] = useState<MensajeChat['requiereAprobacion'] | null>(null);
+  const [propuesta, setPropuesta] = useState<PropuestaPago | null>(null);
 
-  const enviar = useCallback(async (texto: string) => {
-    if (!texto.trim()) return;
-    const nuevoMensaje: MensajeChat = { rol: 'usuario', texto };
-    setMensajes((prev) => [...prev, nuevoMensaje]);
+  const agregar = (m: MensajeChat) => setMensajes((prev) => [...prev, m]);
+
+  const enviar = useCallback(
+    async (texto: string) => {
+      if (!texto.trim()) return;
+      agregar({ rol: 'usuario', texto });
+      setCargando(true);
+      try {
+        const r = await agente.conversar(sesion, texto);
+        agregar({
+          rol: 'asistente',
+          texto: r.texto,
+          herramientas: r.herramientas,
+          fuentes: r.fuentes,
+          ...(r.alertaSeguridad ? { alertaSeguridad: r.alertaSeguridad } : {}),
+        });
+        if (r.propuesta && r.propuesta.estado === 'pendiente') setPropuesta(r.propuesta);
+      } catch (e) {
+        agregar({ rol: 'sistema', texto: `Error: ${e instanceof Error ? e.message : 'desconocido'}` });
+      } finally {
+        setCargando(false);
+      }
+    },
+    [sesion],
+  );
+
+  const aprobar = useCallback(async () => {
+    if (!propuesta) return;
     setCargando(true);
-
     try {
-      const respuesta = await procesarPregunta(texto, mensajes);
-      
-      if (respuesta.requiereAprobacion) {
-        setEsperandoAprobacion(respuesta.requiereAprobacion);
-        setMensajes((prev) => [...prev, { ...respuesta, texto: respuesta.texto + ' (Esperando aprobación...)' }]);
+      const r = await agente.aprobar(sesion, propuesta.id);
+      if (r.ok) {
+        const d = r.estadoDespues as { estado?: string; tramo?: string; diasAtraso?: number; saldoCapital?: { texto: string } } | undefined;
+        agregar({
+          rol: 'sistema',
+          texto:
+            `✅ Pago aprobado por una persona y registrado por el núcleo (clave ${propuesta.clave_idempotencia}).` +
+            (d ? `\nEstado del crédito ${propuesta.id_credito} después del pago: ${d.estado}, ${d.diasAtraso} días de atraso, tramo ${d.tramo}, saldo de capital Q${d.saldoCapital?.texto}.` : ''),
+          herramientas: r.traza,
+        });
       } else {
-        setMensajes((prev) => [...prev, respuesta]);
+        agregar({ rol: 'sistema', texto: `❌ El núcleo rechazó el pago — ${describirResultado(r.resultado)}`, herramientas: r.traza });
       }
     } catch (e) {
-      setMensajes((prev) => [...prev, { rol: 'asistente', texto: `Error: ${e instanceof Error ? e.message : 'Desconocido'}` }]);
+      agregar({ rol: 'sistema', texto: `❌ Error al registrar el pago: ${e instanceof Error ? e.message : 'desconocido'}` });
     } finally {
+      setPropuesta(null);
       setCargando(false);
     }
-  }, [mensajes]);
+  }, [propuesta, sesion]);
 
-  const aprobarPago = useCallback(async () => {
-    if (!esperandoAprobacion) return;
-    setCargando(true);
+  const rechazar = useCallback(async () => {
+    if (!propuesta) return;
     try {
-      await ejecutarMcp(esperandoAprobacion.herramienta, esperandoAprobacion.argumentos, true);
-      setMensajes((prev) => [...prev, { rol: 'asistente', texto: '✅ Pago registrado correctamente con aprobación humana. El estado del crédito ha sido actualizado.' }]);
-    } catch (e) {
-      setMensajes((prev) => [...prev, { rol: 'asistente', texto: `❌ Error al registrar el pago: ${e instanceof Error ? e.message : 'Desconocido'}` }]);
+      await agente.rechazar(sesion, propuesta.id);
     } finally {
-      setEsperandoAprobacion(null);
-      setCargando(false);
+      setPropuesta(null);
+      agregar({ rol: 'sistema', texto: 'Operación cancelada por el usuario. No se registró ningún pago.' });
     }
-  }, [esperandoAprobacion]);
+  }, [propuesta, sesion]);
 
-  const rechazarPago = useCallback(() => {
-    setEsperandoAprobacion(null);
-    setMensajes((prev) => [...prev, { rol: 'asistente', texto: 'Operación cancelada por el usuario.' }]);
-  }, []);
+  const reiniciar = useCallback(async () => {
+    await agente.reiniciar(sesion).catch(() => undefined);
+    setSesion(crypto.randomUUID());
+    setMensajes([BIENVENIDA]);
+    setPropuesta(null);
+  }, [sesion]);
 
-  return { mensajes, cargando, enviar, esperandoAprobacion, aprobarPago, rechazarPago };
+  return { mensajes, cargando, enviar, propuesta, aprobar, rechazar, reiniciar };
 }

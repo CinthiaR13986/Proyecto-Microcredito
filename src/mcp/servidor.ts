@@ -24,7 +24,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import '../config';
+import { z } from 'zod';
+import { verificarAprobacion } from './aprobacion';
 import { crearConexion } from '../persistencia/conexion';
 import {
   listarCreditos,
@@ -32,17 +34,13 @@ import {
   nombresClientes,
   reglasDeGasto,
 } from '../persistencia/consultas';
-import {
-  aCentavos,
-  reconstruirCredito,
-  type ContextoCartera,
-  type DetalleCredito,
-} from '../servicios/reconstructor';
+import { aCentavos, reconstruirCredito } from '../servicios/reconstructor';
 import {
   carteraAlCorte,
   cierreEntre,
   morososAlCorte,
   vencimientosEn,
+  type ContextoCartera,
 } from '../servicios/reportes';
 import {
   CalcularDeudaSchema,
@@ -57,16 +55,21 @@ import {
 import { lastDayOfMonth, parseISO, format } from 'date-fns';
 
 /**
- * esquemaJson — garantiza el contrato JSON Schema que el protocolo MCP
- * exige para inputSchema: un objeto con type: "object" en la raíz.
- * El conversor de Zod aporta properties/required; aquí se asegura el type.
+ * esquemaJson — convierte el esquema Zod (v4) al JSON Schema que el protocolo
+ * MCP exige para inputSchema: type "object" con properties y required.
+ * Es lo que el LLM lee para saber qué argumentos pasar. Se usa el conversor
+ * nativo de Zod 4: zod-to-json-schema solo soporta Zod 3 y devolvía un
+ * esquema vacío.
  */
-function esquemaJson(schema: Parameters<typeof zodToJsonSchema>[0]): Record<string, unknown> {
-  const base = zodToJsonSchema(schema) as Record<string, unknown>;
+function esquemaJson(schema: z.ZodType): { type: 'object'; [k: string]: unknown } {
+  const { $schema: _omitido, ...base } = z.toJSONSchema(schema, { io: 'input' }) as Record<string, unknown>;
   return { ...base, type: 'object' };
 }
 
-const db = await crearConexion('.pgdata');
+/** Sin secreto el servidor es de solo lectura (menor privilegio). */
+const SECRETO_APROBACION = process.env.CV_APROBACION_SECRETO ?? '';
+
+const db = await crearConexion();
 
 async function contexto(): Promise<ContextoCartera> {
   return {
@@ -157,7 +160,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'registrar_pago',
         description:
-          'Registra un pago aplicando la prelación y la idempotencia. REQUIERE APROBACIÓN HUMANA antes de ejecutarse.',
+          'Registra un pago aplicando la prelación y la idempotencia. REQUIERE APROBACIÓN HUMANA: solo se ejecuta con el token_aprobacion que la interfaz emite cuando una persona aprueba.',
         inputSchema: esquemaJson(RegistrarPagoSchema),
         annotations: {
           title: 'Registrar pago (acción sensible)',
@@ -192,6 +195,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 diasAtraso: detalle.diasAtraso,
                 tramo: detalle.tramo,
                 saldoCapital: dinero(detalle.saldoCapital),
+                cuotasTotales: detalle.cuotas.length,
+                cuotasPagadas: detalle.cuotas.filter((q) => q.pagada).length,
+                cuotasVencidasImpagas: detalle.cuotas.filter((q) => !q.pagada && q.diasAtrasoAlCorte >= 1).length,
+                deudaExigible: detalle.deuda
+                  ? { cuotaNumero: detalle.deuda.cuotaNumero, total: dinero(detalle.deuda.total) }
+                  : null,
                 proximaCuota: detalle.proximaCuota
                   ? { numero: detalle.proximaCuota.numero, vencimiento: detalle.proximaCuota.vencimiento, monto: dinero(detalle.proximaCuota.monto) }
                   : null,
@@ -241,6 +250,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!parsed.success) return errorMcp('VALIDACION_ERROR', parsed.error.message);
         const { fila, detalle } = await detalleDe(parsed.data.id_credito, parsed.data.corte);
         if (!fila || !detalle) return errorMcp('CREDITO_INEXISTENTE', `El crédito ${parsed.data.id_credito} no existe.`);
+        const pedida = parsed.data.numero_cuota;
+        const cuota = pedida
+          ? detalle.moraPorCuota.find((m) => m.numero === pedida)
+          : detalle.moraPorCuota[0];
+        if (!cuota) {
+          const q = pedida ? detalle.cuotas.find((c) => c.numero === pedida) : undefined;
+          if (pedida && !q) return errorMcp('CUOTA_INEXISTENTE', `El crédito ${detalle.id} no tiene cuota ${pedida}.`);
+          if (q?.pagada) return errorMcp('CUOTA_YA_PAGADA', `La cuota ${pedida} del crédito ${detalle.id} ya está pagada.`);
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ id: detalle.id, corte: parsed.data.corte, mensaje: 'La cuota no está vencida al corte: no tiene interés moratorio.' }) }],
+          };
+        }
         return {
           content: [
             {
@@ -248,16 +269,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               text: JSON.stringify({
                 id: detalle.id,
                 corte: parsed.data.corte,
-                diasAtraso: detalle.diasAtraso,
-                tramo: detalle.tramo,
                 politica: detalle.politica,
-                lineas: detalle.lineasMora.map((l) => ({
+                estadoCredito: detalle.estado,
+                cuota: {
+                  numero: cuota.numero,
+                  vencimiento: cuota.vencimiento,
+                  diasAtraso: cuota.diasAtraso,
+                  capitalEnMora: dinero(cuota.capitalEnMora),
+                },
+                lineas: cuota.lineas.map((l) => ({
                   tramo: l.tramo,
                   tasaTna: l.tasaTna,
                   diasEnTramo: l.diasEnTramo,
                   montoSinRedondear: l.montoSinRedondear.toFixed(4),
                 })),
-                moratorioTotal: detalle.deuda ? dinero(detalle.deuda.interesMoratorio) : dinero({ aNumero: () => 0 }),
+                reglaRedondeo: 'Se redondea una sola vez, al final, sobre el total de la cuota.',
+                moratorioDevengado: dinero(cuota.moratorioDevengado),
+                moratorioPagado: dinero(cuota.moratorioPagado),
+                moratorioPendiente: dinero(cuota.moratorioPendiente),
               }),
             },
           ],
@@ -373,7 +402,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'registrar_pago': {
         const parsed = RegistrarPagoSchema.safeParse(args);
         if (!parsed.success) return errorMcp('VALIDACION_ERROR', parsed.error.message);
-        const { id_credito, clave_idempotencia, monto_centavos, canal, fecha } = parsed.data;
+        const { id_credito, clave_idempotencia, monto_centavos, canal, fecha, token_aprobacion } = parsed.data;
+
+        // Menor privilegio: sin secreto configurado, el servidor no escribe.
+        if (!SECRETO_APROBACION) {
+          return errorMcp('ESCRITURA_DESHABILITADA', 'El servidor MCP está en modo solo lectura: registrar_pago no está habilitado.');
+        }
+        // Aprobación humana: el token debe firmar exactamente este pago.
+        if (!verificarAprobacion(SECRETO_APROBACION, parsed.data, token_aprobacion)) {
+          return errorMcp('APROBACION_REQUERIDA', 'El pago no tiene una aprobación humana válida. No se ejecutó.');
+        }
 
         // Idempotencia P1 6.10: misma clave → no se aplica dos veces.
         const existente = await db.query<{ fecha: string; monto_centavos: number | string; canal: string }>(
@@ -399,7 +437,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (monto_centavos !== aCentavos(detalle.deuda.total)) {
           return errorMcp(
             'MONTO_NO_EXACTO',
-            `El monto no coincide con lo adeudado de la cuota ${detalle.deuda.cuotaNumero} al ${fecha}.`,
+            `El monto no coincide con lo adeudado de la cuota ${detalle.deuda.cuotaNumero} al ${fecha}. El monto correcto es Q${detalle.deuda.total.aNumero().toFixed(2)}.`,
           );
         }
 

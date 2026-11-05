@@ -150,3 +150,6 @@ dist/
 
 .pgdata/
 .pgdata-rag/
+# Evals del asistente (se regeneran con npm run evals)
+tests/evals/resultados/
+tests/evals/candidatos.json

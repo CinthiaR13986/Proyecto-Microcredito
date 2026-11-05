@@ -2,6 +2,7 @@
  * cli.ts — Ejecuta la ingesta del corpus.
  * Uso: CV_DATA_DIR=datos npm run rag:ingerir
  */
+import '../config';
 import { ingerirCorpus } from './ingesta';
 import { join } from 'node:path';
 
@@ -13,4 +14,4 @@ if (!dataDir) {
 
 const rutaCorpus = join(dataDir, 'corpus');
 const total = await ingerirCorpus(rutaCorpus);
-console.log(`✔ Ingesta completa: ${total} fragmentos de 7 documentos almacenados en pgvector.`);
+console.log(`✔ Ingesta completa: ${total} fragmentos almacenados en pgvector.`);

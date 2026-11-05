@@ -2,7 +2,9 @@
  * servidor.ts — E1 + E5 · API REST sobre los puertos del Proyecto 1.
  * Incluye endpoints para el Chat Gerencial (RAG + MCP).
  */
+import '../config';
 import express, { type Response } from 'express';
+import { z } from 'zod';
 import cors from 'cors';
 import { lastDayOfMonth, parseISO, format } from 'date-fns';
 import { crearConexion } from '../persistencia/conexion';
@@ -38,7 +40,7 @@ import {
   PagoRequestSchema,
   SimulacionQuerySchema,
 } from './esquemas';
-import { recuperar } from '../rag/recuperador';
+import { aprobarPropuesta, conversar, rechazarPropuesta, reiniciarSesion } from '../agente/agente';
 
 const dinero = (d: Dinero) => ({ centavos: aCentavos(d), texto: d.aNumero().toFixed(2) });
 
@@ -349,93 +351,51 @@ app.get('/api/morosos', async (req, res) => {
   });
 });
 
-// ── Endpoints del Chat Gerencial (E5) ─────────────────────────────
+// ── Chat gerencial (E5): LLM vía OpenRouter + MCP + RAG ───────────
+// La interfaz nunca llama herramientas MCP directamente: habla con el
+// agente, y el agente habla con el servidor MCP por el protocolo real.
 
-// POST /api/rag/consultar → recupera fragmentos del corpus con citación
-app.post('/api/rag/consultar', async (req, res) => {
+const ChatSchema = z.object({
+  sesion: z.string().min(8).max(100),
+  mensaje: z.string().min(1).max(4000),
+});
+const AprobacionSchema = z.object({
+  sesion: z.string().min(8).max(100),
+  propuesta: z.string().uuid(),
+});
+
+app.post('/api/chat', async (req, res) => {
+  const parsed = ChatSchema.safeParse(req.body);
+  if (!parsed.success) return error(res, 400, 'VALIDACION_ERROR', 'Mensaje de chat inválido.', parsed.error.issues);
   try {
-    const { pregunta } = req.body;
-    if (!pregunta) return error(res, 400, 'VALIDACION_ERROR', 'Falta la pregunta.');
-    const resultado = await recuperar(pregunta);
-    res.json(resultado);
+    res.json(await conversar(parsed.data.sesion, parsed.data.mensaje));
   } catch (e) {
-    error(res, 500, 'ERROR_RAG', e instanceof Error ? e.message : String(e));
+    error(res, 502, 'ERROR_ASISTENTE', e instanceof Error ? e.message : String(e));
   }
 });
 
-// POST /api/mcp/ejecutar → ejecuta una herramienta MCP (con aprobación si es sensible)
-app.post('/api/mcp/ejecutar', async (req, res) => {
+// Aprobación humana: solo esta ruta ejecuta registrar_pago, y solo la
+// dispara el botón "Aprobar" de la interfaz.
+app.post('/api/chat/aprobar', async (req, res) => {
+  const parsed = AprobacionSchema.safeParse(req.body);
+  if (!parsed.success) return error(res, 400, 'VALIDACION_ERROR', 'Aprobación inválida.', parsed.error.issues);
   try {
-    const { herramienta, argumentos, aprobacionHumana } = req.body;
-    
-    if (herramienta === 'registrar_pago' && !aprobacionHumana) {
-      return res.status(403).json({ 
-        error: { codigo: 'APROBACION_REQUERIDA', mensaje: 'Esta acción requiere aprobación humana.' } 
-      });
-    }
-
-    let resultado;
-    const ctx = await contexto();
-    
-    switch (herramienta) {
-      case 'consultar_credito': {
-        const { detalle } = await detalleDe(argumentos.id_credito as string, argumentos.corte as string);
-        if (!detalle) throw new Error('Crédito no encontrado');
-        resultado = { 
-          id: detalle.id, 
-          estado: detalle.estado, 
-          diasAtraso: detalle.diasAtraso, 
-          saldoCapital: dinero(detalle.saldoCapital),
-          tramo: detalle.tramo
-        };
-        break;
-      }
-      case 'calcular_deuda': {
-        const { detalle } = await detalleDe(argumentos.id_credito as string, argumentos.corte as string);
-        if (!detalle?.deuda) throw new Error('Sin deuda vencida');
-        resultado = { 
-          total: dinero(detalle.deuda.total), 
-          desglose: {
-            gastos: dinero(detalle.deuda.gastos),
-            moratorio: dinero(detalle.deuda.interesMoratorio),
-            corriente: dinero(detalle.deuda.interesCorriente),
-            capital: dinero(detalle.deuda.capital)
-          }
-        };
-        break;
-      }
-      case 'consultar_cartera': {
-        const cartera = carteraAlCorte(ctx, argumentos.corte as string);
-        resultado = { 
-          activa: dinero(cartera.carteraActiva), 
-          mora: dinero(cartera.carteraEnMora), 
-          riesgo: dinero(cartera.carteraEnRiesgo), 
-          porcentajeRiesgo: cartera.porcentajeRiesgo,
-          porcentajeMora: cartera.porcentajeEnMora
-        };
-        break;
-      }
-      case 'registrar_pago': {
-        // Validación básica antes de insertar
-        const { detalle } = await detalleDe(argumentos.id_credito as string, argumentos.fecha as string);
-        if (!detalle) throw new Error('Crédito no encontrado');
-        if (detalle.estado === 'incobrable') throw new Error('Crédito incobrable');
-        
-        await db.query(
-          'insert into pagos (clave_idempotencia, id_credito, fecha, monto_centavos, canal) values ($1,$2,$3,$4,$5)',
-          [argumentos.clave_idempotencia, argumentos.id_credito, argumentos.fecha, argumentos.monto_centavos, argumentos.canal]
-        );
-        const { detalle: dPago } = await detalleDe(argumentos.id_credito as string, argumentos.fecha as string);
-        resultado = { estado: 'registrado', nuevoEstado: dPago?.estado, nuevoTramo: dPago?.tramo };
-        break;
-      }
-      default:
-        throw new Error(`Herramienta ${herramienta} no implementada`);
-    }
-    res.json(resultado);
+    res.json(await aprobarPropuesta(parsed.data.sesion, parsed.data.propuesta));
   } catch (e) {
     error(res, 500, 'ERROR_MCP', e instanceof Error ? e.message : String(e));
   }
+});
+
+app.post('/api/chat/rechazar', (req, res) => {
+  const parsed = AprobacionSchema.safeParse(req.body);
+  if (!parsed.success) return error(res, 400, 'VALIDACION_ERROR', 'Rechazo inválido.', parsed.error.issues);
+  res.json({ ok: rechazarPropuesta(parsed.data.sesion, parsed.data.propuesta) });
+});
+
+app.post('/api/chat/reiniciar', (req, res) => {
+  const sesion = typeof req.body?.sesion === 'string' ? req.body.sesion : '';
+  if (sesion) reiniciarSesion(sesion);
+  res.json({ ok: true });
 });
 
 app.listen(8080, () => {

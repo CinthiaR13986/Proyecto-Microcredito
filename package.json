@@ -17,7 +17,9 @@
     "db:reset": "node -e \"require('fs').rmSync('.pgdata',{recursive:true,force:true})\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "evals": "tsx tests/evals/run-evals.ts",
+    "evals:promover": "tsx tests/evals/promover.ts"
   },
   "keywords": [
     "microcredito",
