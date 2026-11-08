@@ -3,6 +3,8 @@
 **Proyecto Final · Análisis de Sistemas II (037) · Segundo semestre 2026**
 Grupo No. **[4]** · Integrantes: **[Cinthia Robles] · [Frederick Montiel] · [Heldris Yanes] · [Ezequiel Castro] · [Jermy Pinto]**
 
+link del video **https://canva.link/p8eu5f3d867q63g
+
 El mismo sistema y el mismo repositorio del Proyecto 1 y del Proyecto 2.
 El núcleo de cálculo **no se reescribió**: se le agregaron la interfaz implementada,
 la persistencia con carga canónica, el servidor MCP, el RAG con citación y el chat
